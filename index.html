@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FUTRanking</title>
+    <script>
+        // Variáveis para criação de tabela
+        var table = ""
+        var rows = 16
+        var cols = 4
+
+        // Determinação da data de hoje
+        n =  new Date();
+        y = n.getFullYear()
+        m = n.getMonth() + 1
+        d = n.getDate()
+        date = d + "/" + m + "/" + y
+        document.write("Ratings (Última atualização:" + date + ")")
+        for(var r = 0; r < rows;r++)
+        {
+            table += "<tr>";
+                for(var c = 1;c < cols + 1;c++)
+                {
+                    table += "<td>" + c + "</td>"
+                }
+            table += "</tr>";   
+        }
+        document.write("<table border = 1>" + table + "</table>")
+    </script>
+</head>
+<body>
+    
+</body>
+</html>
