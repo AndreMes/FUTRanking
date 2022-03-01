@@ -1,45 +1,46 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FUTRanking</title>
+    <link rel="icon" href="https://raw.githubusercontent.com/AndreMes/FUTRanking/main/icon.png">
     <script>
-        // Variáveis para criação de tabela
+
+        document.write("Ratings (Última atualização:" + "28/02/2022" + ")")
+
+        // Criação de tabela
         var table = ""
         var rows = 16
         var cols = 4
 
-        // Determinação da data de hoje
-        n =  new Date();
-        y = n.getFullYear()
-        m = n.getMonth() + 1
-        d = n.getDate()
-        date = d + "/" + m + "/" + y
-        document.write("Ratings (Última atualização:" + "28/02/2022" + ")")
-        for(var r = 0; r < rows;r++)
-        {
+        for (var r = 0; r < rows + 1; r++) {
             table += "<tr>";
-                for(var c = 1;c < cols + 1;c++)
-                {
-                    table += "<td>" + c + "</td>"
-                }
-            table += "</tr>";   
+            for (var c = 1; c < cols + 1; c++) {
+                table += "<td>" + c + "</td>"
+            }
+            table += "</tr>";
         }
-        document.write("<table border = 1>" + table + "</table>")
+        document.write("<table border=1 id='teamstable'>" + table + "</table>")
+
     </script>
 </head>
+
 <body>
     <div style="background: ghostwhite;
                 border: 1px solid lightgray;
                 padding: 10px;
                 margin: 0px; ">
-    <h1>Changelog</h1>
-    <h2>28/02/2022</h2>
-    <p>Adição de esqueleto de tabela variável, nome da página e título simples</p>
-    <h2>27/02/2022</h2>
-    <p>Criação do site</p>
-</div>
+        <h1>Changelog</h1>
+        <h2>29/02/2022</h2>
+        <p>Adição de favicon</p>
+        <h2>28/02/2022</h2>
+        <p>Adição de esqueleto de tabela variável, nome da página e título simples</p>
+        <h2>27/02/2022</h2>
+        <p>Criação do site</p>
+    </div>
 </body>
+
 </html>
