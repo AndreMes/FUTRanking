@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .database import store_match, store_source_payload
+from .database import replace_fixtures, store_match, store_source_payload
 
 BASE_URL = "https://api.football-data.org/v4"
 BRASILEIRAO_SERIE_A = "BSA"
@@ -56,5 +56,15 @@ def sync_season(database, season: int) -> int:
     for match in data.get("matches", []):
         store_match(database, match_to_row(match))
         imported += 1
+    fixture_data, fixture_raw, fixture_path = client.get(
+        f"/competitions/{BRASILEIRAO_SERIE_A}/matches", season=season, status="SCHEDULED,TIMED"
+    )
+    store_source_payload(database, "football-data.org", fixture_path, fixture_raw)
+    replace_fixtures(database, [
+        {"external_id": f"football-data:{match['id']}", "scheduled_at": match["utcDate"], "competition": "Série A",
+         "status": match["status"], "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"]}
+        for match in fixture_data.get("matches", [])
+    ])
     database.commit()
     return imported
+
