@@ -1,0 +1,182 @@
+{
+  "competition": "Campeonato Brasileiro Série A",
+  "period_date": "2026-10-19",
+  "generated_at": "2026-10-22T00:46:07.261773+00:00",
+  "source": "football-data.org",
+  "teams": [
+    {
+      "position": 1,
+      "name": "CR Flamengo",
+      "rating": 1717.2,
+      "rd": 68.3
+    },
+    {
+      "position": 2,
+      "name": "SE Palmeiras",
+      "rating": 1696.1,
+      "rd": 68.9
+    },
+    {
+      "position": 3,
+      "name": "Cruzeiro EC",
+      "rating": 1604.9,
+      "rd": 66.3
+    },
+    {
+      "position": 4,
+      "name": "Fluminense FC",
+      "rating": 1588.6,
+      "rd": 66.6
+    },
+    {
+      "position": 5,
+      "name": "CA Paranaense",
+      "rating": 1575.7,
+      "rd": 69.5
+    },
+    {
+      "position": 6,
+      "name": "CA Mineiro",
+      "rating": 1569.6,
+      "rd": 65.9
+    },
+    {
+      "position": 7,
+      "name": "Santos FC",
+      "rating": 1559.9,
+      "rd": 66.5
+    },
+    {
+      "position": 8,
+      "name": "EC Bahia",
+      "rating": 1557.8,
+      "rd": 66.2
+    },
+    {
+      "position": 9,
+      "name": "Mirassol FC",
+      "rating": 1538.3,
+      "rd": 66.7
+    },
+    {
+      "position": 10,
+      "name": "Botafogo FR",
+      "rating": 1535.4,
+      "rd": 66.0
+    },
+    {
+      "position": 11,
+      "name": "Fortaleza EC",
+      "rating": 1514.6,
+      "rd": 93.5
+    },
+    {
+      "position": 12,
+      "name": "São Paulo FC",
+      "rating": 1503.5,
+      "rd": 65.8
+    },
+    {
+      "position": 13,
+      "name": "RB Bragantino",
+      "rating": 1495.4,
+      "rd": 66.0
+    },
+    {
+      "position": 14,
+      "name": "CR Vasco da Gama",
+      "rating": 1485.2,
+      "rd": 67.3
+    },
+    {
+      "position": 15,
+      "name": "EC Vitória",
+      "rating": 1482.8,
+      "rd": 65.9
+    },
+    {
+      "position": 16,
+      "name": "Coritiba FBC",
+      "rating": 1471.2,
+      "rd": 72.5
+    },
+    {
+      "position": 17,
+      "name": "SC Internacional",
+      "rating": 1464.9,
+      "rd": 66.1
+    },
+    {
+      "position": 18,
+      "name": "SC Corinthians Paulista",
+      "rating": 1456.5,
+      "rd": 66.6
+    },
+    {
+      "position": 19,
+      "name": "Ceará SC",
+      "rating": 1456.4,
+      "rd": 97.8
+    },
+    {
+      "position": 20,
+      "name": "Grêmio FBPA",
+      "rating": 1447.5,
+      "rd": 66.0
+    },
+    {
+      "position": 21,
+      "name": "EC Juventude",
+      "rating": 1427.2,
+      "rd": 94.5
+    },
+    {
+      "position": 22,
+      "name": "Criciúma EC",
+      "rating": 1412.8,
+      "rd": 123.8
+    },
+    {
+      "position": 23,
+      "name": "Clube do Remo",
+      "rating": 1400.3,
+      "rd": 76.7
+    },
+    {
+      "position": 24,
+      "name": "Goiás EC",
+      "rating": 1394.2,
+      "rd": 146.3
+    },
+    {
+      "position": 25,
+      "name": "Cuiabá EC",
+      "rating": 1390.8,
+      "rd": 120.8
+    },
+    {
+      "position": 26,
+      "name": "AC Goianiense",
+      "rating": 1362.7,
+      "rd": 126.4
+    },
+    {
+      "position": 27,
+      "name": "Chapecoense AF",
+      "rating": 1324.3,
+      "rd": 82.4
+    },
+    {
+      "position": 28,
+      "name": "América FC",
+      "rating": 1297.3,
+      "rd": 149.1
+    },
+    {
+      "position": 29,
+      "name": "SC Recife",
+      "rating": 1280.3,
+      "rd": 102.0
+    }
+  ]
+}
