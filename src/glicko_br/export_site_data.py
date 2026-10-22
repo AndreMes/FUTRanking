@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .database import connect, initialise, latest_ranking
+from .glicko2 import Rating, expected_score
+from .database import HOME_ADVANTAGE
 
 
 def exported_matches(database) -> list[dict[str, object]]:
@@ -50,6 +52,22 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
     }
 
 
+def exported_fixtures(database, ranking) -> list[dict[str, object]]:
+    ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
+    rows = database.execute(
+        """SELECT f.scheduled_at, f.status, home.name AS home_team, away.name AS away_team
+           FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
+           ORDER BY f.scheduled_at LIMIT 20"""
+    ).fetchall()
+    fixtures = []
+    for row in rows:
+        home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
+        home_chance = expected_score(home, away, HOME_ADVANTAGE)
+        fixtures.append({**dict(row), "home_rating": round(home.rating, 1), "away_rating": round(away.rating, 1),
+                         "home_favoritism": round(home_chance * 100, 1), "away_favoritism": round((1 - home_chance) * 100, 1)})
+    return fixtures
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -79,6 +97,7 @@ def main() -> None:
         "scope_note": "Desempenho calculado sobre todas as partidas importadas neste ranking.",
         "teams": teams,
         "matches": matches,
+        "fixtures": exported_fixtures(database, ranking),
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
