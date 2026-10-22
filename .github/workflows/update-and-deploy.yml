@@ -1,6 +1,8 @@
 name: Atualizar e publicar FUTRanking
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     # 06:15 em São Paulo (UTC-3)
