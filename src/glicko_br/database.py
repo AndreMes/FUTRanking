@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS rating_snapshots (
   rating REAL NOT NULL, rd REAL NOT NULL, volatility REAL NOT NULL,
   PRIMARY KEY(period_date, club_id)
 );
+CREATE TABLE IF NOT EXISTS match_rating_effects (
+  external_id TEXT NOT NULL REFERENCES matches(external_id),
+  club_id INTEGER NOT NULL REFERENCES clubs(id),
+  rating_before REAL NOT NULL, rating_after REAL NOT NULL, rating_effect REAL NOT NULL,
+  PRIMARY KEY(external_id, club_id)
+);
 CREATE TABLE IF NOT EXISTS source_payloads (
   id INTEGER PRIMARY KEY, source TEXT NOT NULL, request_path TEXT NOT NULL,
   fetched_at TEXT NOT NULL, payload TEXT NOT NULL
@@ -77,6 +83,7 @@ def store_source_payload(database: sqlite3.Connection, source: str, request_path
 def rebuild(database: sqlite3.Connection) -> int:
     """Refaz todo o histórico derivado; resultados brutos nunca são apagados."""
     database.execute("DELETE FROM rating_snapshots")
+    database.execute("DELETE FROM match_rating_effects")
     rows = database.execute(
         """SELECT m.*, home.name home_name, away.name away_name FROM matches m
            JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
@@ -112,6 +119,29 @@ def rebuild(database: sqlite3.Connection) -> int:
                 ratings[club_id] = update(rating, ())
         for club_id, result in outcomes.items():
             ratings[club_id] = update(before.get(club_id, Rating()), result)
+        # O Glicko-2 avalia a semana como uma única rodada. Para explicar cada
+        # jogo sem introduzir uma ordem artificial, medimos seu efeito como a
+        # diferença entre o cálculo completo e o mesmo cálculo sem esse jogo.
+        effects = []
+        for game in games:
+            pairs = (
+                (game["home_club_id"], game["away_club_id"], HOME_ADVANTAGE),
+                (game["away_club_id"], game["home_club_id"], -HOME_ADVANTAGE),
+            )
+            for club_id, opponent_id, advantage in pairs:
+                all_results = outcomes[club_id]
+                omitted = next(
+                    result for result in all_results
+                    if result.opponent == before.get(opponent_id, Rating()) and result.rating_offset == advantage
+                )
+                without_game = tuple(result for result in all_results if result is not omitted)
+                counterfactual = update(before.get(club_id, Rating()), without_game)
+                effects.append((game["external_id"], club_id, before.get(club_id, Rating()).rating,
+                                ratings[club_id].rating, ratings[club_id].rating - counterfactual.rating))
+        database.executemany(
+            "INSERT INTO match_rating_effects(external_id, club_id, rating_before, rating_after, rating_effect) VALUES (?, ?, ?, ?, ?)",
+            effects,
+        )
         database.executemany(
             "INSERT INTO rating_snapshots(period_date, club_id, rating, rd, volatility) VALUES (?, ?, ?, ?, ?)",
             [(week.isoformat(), club, rating.rating, rating.rd, rating.volatility) for club, rating in ratings.items()],
@@ -129,3 +159,4 @@ def latest_ranking(database: sqlite3.Connection) -> list[sqlite3.Row]:
         """SELECT c.name, s.rating, s.rd, s.volatility, s.period_date FROM rating_snapshots s
            JOIN clubs c ON c.id=s.club_id WHERE s.period_date=? ORDER BY s.rating DESC, s.rd ASC, c.name""", (latest,)
     ).fetchall()
+
