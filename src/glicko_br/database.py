@@ -33,6 +33,11 @@ CREATE TABLE IF NOT EXISTS match_rating_effects (
   rating_before REAL NOT NULL, rating_after REAL NOT NULL, rating_effect REAL NOT NULL,
   PRIMARY KEY(external_id, club_id)
 );
+CREATE TABLE IF NOT EXISTS fixtures (
+  external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
+  status TEXT NOT NULL, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
+  away_club_id INTEGER NOT NULL REFERENCES clubs(id)
+);
 CREATE TABLE IF NOT EXISTS source_payloads (
   id INTEGER PRIMARY KEY, source TEXT NOT NULL, request_path TEXT NOT NULL,
   fetched_at TEXT NOT NULL, payload TEXT NOT NULL
@@ -78,6 +83,17 @@ def store_source_payload(database: sqlite3.Connection, source: str, request_path
         "INSERT INTO source_payloads(source, request_path, fetched_at, payload) VALUES (?, ?, datetime('now'), ?)",
         (source, request_path, payload),
     )
+
+
+def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]]) -> None:
+    """Substitui a agenda futura da Série A; ela não participa do rating."""
+    database.execute("DELETE FROM fixtures WHERE competition = 'Série A'")
+    for fixture in fixtures:
+        home, away = _club_id(database, fixture["home_team"]), _club_id(database, fixture["away_team"])
+        database.execute(
+            "INSERT INTO fixtures(external_id, scheduled_at, competition, status, home_club_id, away_club_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"], home, away),
+        )
 
 
 def rebuild(database: sqlite3.Connection) -> int:
