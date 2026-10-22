@@ -1,4 +1,4 @@
-"""Exporta ranking, resultados e desempenho para o painel estático."""
+"""Exporta o último ranking calculado para o painel estático."""
 from __future__ import annotations
 
 import argparse
@@ -13,10 +13,14 @@ def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
         """SELECT m.external_id, m.played_at, m.competition, home.name AS home_team,
-                  away.name AS away_team, m.home_goals, m.away_goals
+                  away.name AS away_team, m.home_goals, m.away_goals,
+                  home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
+                  away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
            FROM matches m
            JOIN clubs home ON home.id = m.home_club_id
            JOIN clubs away ON away.id = m.away_club_id
+           LEFT JOIN match_rating_effects home_effect ON home_effect.external_id = m.external_id AND home_effect.club_id = m.home_club_id
+           LEFT JOIN match_rating_effects away_effect ON away_effect.external_id = m.external_id AND away_effect.club_id = m.away_club_id
            ORDER BY m.played_at DESC, m.external_id DESC"""
     ).fetchall()
     return [dict(row) for row in rows]
@@ -84,3 +88,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
