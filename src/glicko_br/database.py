@@ -4,12 +4,16 @@ from __future__ import annotations
 import sqlite3
 from collections import defaultdict
 from datetime import date, datetime
+from math import log
 from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, update
 
 COMPETITIONS = {"Série A", "Série B", "Série C", "Série D", "Copa do Brasil"}
-HOME_ADVANTAGE = 55.0
+HOME_ADVANTAGE = 50.0
+GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
+MAX_GOAL_MARGIN_WEIGHT = 1.8
+RATING_MODEL_VERSION = "glicko2-home50-goal-margin-v1"
 MAX_INACTIVITY_DAYS = 180
 MAX_RANKING_RD = 120.0
 
@@ -41,6 +45,9 @@ CREATE TABLE IF NOT EXISTS rating_states (
 );
 CREATE TABLE IF NOT EXISTS processed_matches (
   external_id TEXT PRIMARY KEY REFERENCES matches(external_id), processed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS rating_model (
+  singleton INTEGER PRIMARY KEY CHECK(singleton = 1), version TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS fixtures (
   external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
@@ -139,6 +146,14 @@ def _advance_inactive(rating: Rating, since: str | None, until: str) -> Rating:
     return rating
 
 
+def _goal_margin_weight(home_goals: int, away_goals: int) -> float:
+    """Amplia com suavidade a evidência de vitórias largas, com teto de segurança."""
+    difference = abs(home_goals - away_goals)
+    if difference <= 1:
+        return 1.0
+    return min(MAX_GOAL_MARGIN_WEIGHT, 1.0 + GOAL_MARGIN_WEIGHT_COEFFICIENT * log(difference))
+
+
 def _apply_timestamp_group(
     database: sqlite3.Connection, games: list[sqlite3.Row], ratings: dict[int, Rating], last_played: dict[int, str]
 ) -> None:
@@ -150,8 +165,9 @@ def _apply_timestamp_group(
     for game in games:
         home, away = before[game["home_club_id"]], before[game["away_club_id"]]
         home_score = 1.0 if game["home_goals"] > game["away_goals"] else 0.5 if game["home_goals"] == game["away_goals"] else 0.0
-        outcomes[game["home_club_id"]].append(OpponentResult(away, home_score, HOME_ADVANTAGE))
-        outcomes[game["away_club_id"]].append(OpponentResult(home, 1.0 - home_score, -HOME_ADVANTAGE))
+        weight = _goal_margin_weight(game["home_goals"], game["away_goals"])
+        outcomes[game["home_club_id"]].append(OpponentResult(away, home_score, HOME_ADVANTAGE, weight))
+        outcomes[game["away_club_id"]].append(OpponentResult(home, 1.0 - home_score, -HOME_ADVANTAGE, weight))
     after = {club: update(before[club], results) for club, results in outcomes.items()}
     effects = []
     for game in games:
@@ -193,12 +209,16 @@ def rebuild(database: sqlite3.Connection) -> int:
     last_played: dict[int, str] = {}
     for games in _groups(rows):
         _apply_timestamp_group(database, games, ratings, last_played)
+    database.execute("INSERT OR REPLACE INTO rating_model(singleton, version) VALUES (1, ?)", (RATING_MODEL_VERSION,))
     database.commit()
     return len(rows)
 
 
 def process_pending(database: sqlite3.Connection) -> int:
     """Processa apenas placares novos, em ordem temporal, sem refazer o histórico diário."""
+    stored_version = database.execute("SELECT version FROM rating_model WHERE singleton=1").fetchone()
+    if not stored_version or stored_version["version"] != RATING_MODEL_VERSION:
+        return rebuild(database)
     pending = database.execute(
         """SELECT m.* FROM matches m LEFT JOIN processed_matches p ON p.external_id=m.external_id
            WHERE p.external_id IS NULL ORDER BY m.played_at, m.external_id"""
