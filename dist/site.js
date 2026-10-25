@@ -9,7 +9,7 @@ const shell = (title, kicker = 'Série A · Brasil') => `<header class="top"><di
 const stageName = stage => ({LAST_16: 'Oitavas de final', QUARTER_FINALS: 'Quartas de final', SEMI_FINALS: 'Semifinal', FINAL: 'Final', THIRD_PLACE: 'Disputa do 3º lugar'}[stage] || stage?.replaceAll('_', ' '));
 function matchContext(m) { const parts = [m.competition]; if (m.stage && m.stage !== 'REGULAR_SEASON') parts.push(stageName(m.stage)); else if (m.matchday) parts.push(`Rodada ${m.matchday}`); if (m.group_name) parts.push(m.group_name); return parts.filter(Boolean).join(' · '); }
 const contextStyle = document.createElement('style');
-contextStyle.textContent = '.competition{display:block;margin-top:4px;color:#006b54;font-size:.68rem;font-weight:800;line-height:1.25}';
+contextStyle.textContent = '.competition{display:block;margin-top:4px;color:#006b54;font-size:.68rem;font-weight:800;line-height:1.25}.list-tools{display:flex;align-items:center;gap:12px;margin:24px 0 12px}.list-search{width:min(100%,420px);padding:11px 13px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 4px;color:#5b6f68;font-size:.88rem}.pager-actions{display:flex;gap:8px}.pager button{border:1px solid #d8d0c1;border-radius:7px;background:#fffdf8;color:#10231d;padding:7px 10px;font:inherit;font-weight:700;cursor:pointer}.pager button:disabled{opacity:.45;cursor:not-allowed}.empty-list{padding:22px;text-align:center;color:#5b6f68}@media(max-width:650px){.list-tools{margin-top:18px}.pager{align-items:flex-start;flex-direction:column}}';
 document.head.append(contextStyle);
 
 function game(m, fixture = false) {
@@ -17,6 +17,26 @@ function game(m, fixture = false) {
   const homeMeta = fixture ? `Rating ${m.home_rating.toFixed(1)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${m.away_rating.toFixed(1)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
   return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest)}<small class="rating">${awayMeta}</small></span></article>`;
+}
+
+const searchableText = m => [m.home_team, m.away_team, m.competition, m.matchday && `rodada ${m.matchday}`, stageName(m.stage), m.group_name, m.played_at, m.scheduled_at].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function mountPagedList(host, games, renderGame, options = {}) {
+  const pageSize = options.pageSize || 15, canSearch = Boolean(options.search), emptyText = options.emptyText || 'Nenhuma partida encontrada.';
+  host.innerHTML = `${canSearch ? `<div class="list-tools"><input class="list-search" type="search" placeholder="${options.placeholder || 'Buscar partida'}" aria-label="Buscar partida"></div>` : ''}<section class="panel"></section><div class="pager" aria-live="polite"></div>`;
+  const input = host.querySelector('.list-search'), panel = host.querySelector('.panel'), pager = host.querySelector('.pager');
+  let filtered = games, currentPage = 1;
+  const render = () => {
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    currentPage = Math.min(currentPage, totalPages);
+    const start = (currentPage - 1) * pageSize, visible = filtered.slice(start, start + pageSize);
+    panel.innerHTML = visible.length ? visible.map(renderGame).join('') : `<p class="empty-list">${emptyText}</p>`;
+    pager.innerHTML = filtered.length ? `<span>Página ${currentPage} de ${totalPages} · ${filtered.length} partida${filtered.length === 1 ? '' : 's'}</span><span class="pager-actions"><button type="button" data-page="previous" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button><button type="button" data-page="next" ${currentPage === totalPages ? 'disabled' : ''}>Próxima</button></span>` : '';
+    pager.querySelector('[data-page="previous"]')?.addEventListener('click', () => { currentPage -= 1; render(); host.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+    pager.querySelector('[data-page="next"]')?.addEventListener('click', () => { currentPage += 1; render(); host.scrollIntoView({ block: 'start', behavior: 'smooth' }); });
+  };
+  input?.addEventListener('input', () => { const query = input.value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); filtered = games.filter(m => searchableText(m).includes(query)); currentPage = 1; render(); });
+  render();
 }
 
 function method() {
@@ -31,18 +51,22 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
   }
   if (page === 'resultados') {
     document.body.innerHTML = shell('Últimos resultados', 'Transparência');
-    el('#content').innerHTML = `<p>Rating após o ciclo e impacto estimado daquele jogo. Horários em Brasília.</p><section class="panel">${data.matches.slice(0, 30).map(m => game(m)).join('')}</section>`;
+    el('#content').innerHTML = `<p>Rating após o ciclo e impacto estimado daquele jogo. Horários em Brasília. Pesquise por clube, competição, rodada ou fase.</p><div class="list-host"></div>`;
+    mountPagedList(el('.list-host'), data.matches, m => game(m), { search: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum resultado corresponde à busca.' });
   }
   if (page === 'fixtures') {
     document.body.innerHTML = shell('Próximos jogos', 'Agenda');
-    el('#content').innerHTML = `<p>Horários em Brasília. Percentuais representam favoritismo Glicko-2 com mando de campo.</p><section class="panel">${data.fixtures.map(m => game(m, true)).join('') || '<p style="padding:20px">Nenhum jogo futuro disponível.</p>'}</section>`;
+    el('#content').innerHTML = `<p>Horários em Brasília. Percentuais representam favoritismo Glicko-2 com mando de campo. Consulte toda a agenda disponível e pesquise pelo confronto.</p><div class="list-host"></div>`;
+    mountPagedList(el('.list-host'), data.fixtures, m => game(m, true), { search: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum jogo futuro corresponde à busca.' });
   }
   if (page === 'club') {
     const name = q.get('time'), team = data.teams.find(t => t.name === name);
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
-    const matches = data.matches.filter(m => m.home_team === name || m.away_team === name).slice(0, 12), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
+    const matches = data.matches.filter(m => m.home_team === name || m.away_team === name), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
-    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><h2>Próximos fixtures</h2><section class="panel">${fixtures.map(m => game(m, true)).join('') || '<p style="padding:20px">Nenhum fixture futuro disponível.</p>'}</section><h2>Últimos resultados</h2><section class="panel">${matches.map(m => game(m)).join('')}</section>`;
+    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
+    mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
+    mountPagedList(el('.results-host'), matches, m => game(m), { pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
   }
   if (page === 'method') {
     method();
