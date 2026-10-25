@@ -6,12 +6,17 @@ const crest = (url, name) => url ? `<img class="crest" src="${url}" alt="Brasão
 const club = (name, url) => `<span class="club">${crest(url, name)}${name}</span>`;
 const impact = value => `<span class="impact ${value >= 0 ? 'positive' : 'negative'}">${value >= 0 ? '+' : ''}${value?.toFixed(1) ?? '—'}</span>`;
 const shell = (title, kicker = 'Série A · Brasil') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav><a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="proximos-jogos.html">Próximos jogos</a><a href="metodo.html">Método</a></nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap">FUTRanking · Glicko-2 para o futebol brasileiro</div></footer>`;
+const stageName = stage => ({LAST_16: 'Oitavas de final', QUARTER_FINALS: 'Quartas de final', SEMI_FINALS: 'Semifinal', FINAL: 'Final', THIRD_PLACE: 'Disputa do 3º lugar'}[stage] || stage?.replaceAll('_', ' '));
+function matchContext(m) { const parts = [m.competition]; if (m.stage && m.stage !== 'REGULAR_SEASON') parts.push(stageName(m.stage)); else if (m.matchday) parts.push(`Rodada ${m.matchday}`); if (m.group_name) parts.push(m.group_name); return parts.filter(Boolean).join(' · '); }
+const contextStyle = document.createElement('style');
+contextStyle.textContent = '.competition{display:block;margin-top:4px;color:#006b54;font-size:.68rem;font-weight:800;line-height:1.25}';
+document.head.append(contextStyle);
 
 function game(m, fixture = false) {
   const score = fixture ? `<span class="score forecast">${m.home_favoritism}% · ${m.away_favoritism}%</span>` : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
   const homeMeta = fixture ? `Rating ${m.home_rating.toFixed(1)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${m.away_rating.toFixed(1)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
-  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}</span><span class="home">${club(m.home_team, m.home_crest)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest)}<small class="rating">${awayMeta}</small></span></article>`;
+  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest)}<small class="rating">${awayMeta}</small></span></article>`;
 }
 
 function method() {
