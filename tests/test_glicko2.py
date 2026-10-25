@@ -1,4 +1,4 @@
-from glicko_br.database import HOME_ADVANTAGE, _goal_margin_weight, connect, initialise, latest_ranking, process_pending, rebuild, store_match
+from glicko_br.database import HOME_ADVANTAGE, _goal_margin_weight, connect, initialise, latest_ranking, process_pending, rebuild, replace_fixtures, store_match
 from glicko_br.glicko2 import Rating, expected_score, update, OpponentResult
 
 
@@ -24,6 +24,16 @@ def test_goal_margin_increases_weight_and_rating_effect():
     assert _goal_margin_weight(3, 0) > 1.0
     assert _goal_margin_weight(8, 0) == 1.8
     assert three_goals.rating > one_goal.rating
+
+
+def test_completed_match_is_never_retained_as_fixture():
+    database = connect(":memory:")
+    initialise(database)
+    fixture = {"external_id": "same-game", "scheduled_at": "2026-10-24T19:30:00Z", "competition": "Série A", "status": "SCHEDULED", "home_team": "Casa", "away_team": "Fora"}
+    replace_fixtures(database, [fixture])
+    store_match(database, {"external_id": "same-game", "played_at": "2026-10-24T19:30:00Z", "competition": "Série A", "home_team": "Casa", "away_team": "Fora", "home_goals": "2", "away_goals": "1"})
+    replace_fixtures(database, [fixture])  # feed de fixtures deliberadamente defasado
+    assert database.execute("SELECT COUNT(*) FROM fixtures").fetchone()[0] == 0
 
 
 def test_rebuild_is_idempotent_and_stores_history():
