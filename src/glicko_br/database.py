@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS clubs (
 );
 CREATE TABLE IF NOT EXISTS matches (
   external_id TEXT PRIMARY KEY, played_at TEXT NOT NULL, competition TEXT NOT NULL,
+  matchday INTEGER, stage TEXT, group_name TEXT,
   home_club_id INTEGER NOT NULL REFERENCES clubs(id), away_club_id INTEGER NOT NULL REFERENCES clubs(id),
   home_goals INTEGER NOT NULL CHECK(home_goals >= 0), away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
   CHECK(home_club_id <> away_club_id), CHECK(competition IN ('Série A','Série B','Série C','Série D','Copa do Brasil'))
@@ -43,7 +44,7 @@ CREATE TABLE IF NOT EXISTS processed_matches (
 );
 CREATE TABLE IF NOT EXISTS fixtures (
   external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
-  status TEXT NOT NULL, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
+  status TEXT NOT NULL, matchday INTEGER, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
   away_club_id INTEGER NOT NULL REFERENCES clubs(id)
 );
 CREATE TABLE IF NOT EXISTS source_payloads (
@@ -64,6 +65,11 @@ def initialise(database: sqlite3.Connection) -> None:
     columns = {row["name"] for row in database.execute("PRAGMA table_info(clubs)")}
     if "crest_url" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN crest_url TEXT")
+    for table in ("matches", "fixtures"):
+        columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
+        for column, kind in (("matchday", "INTEGER"), ("stage", "TEXT"), ("group_name", "TEXT")):
+            if column not in columns:
+                database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     database.commit()
 
 
@@ -82,17 +88,19 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     datetime.fromisoformat(played_at.replace("Z", "+00:00"))
     home = _club_id(database, match["home_team"], match.get("home_crest"))
     away = _club_id(database, match["away_team"], match.get("away_crest"))
-    values = (played_at, competition, home, away, int(match["home_goals"]), int(match["away_goals"]))
+    matchday = int(match["matchday"]) if match.get("matchday") else None
+    values = (played_at, competition, matchday, match.get("stage"), match.get("group_name"), home, away, int(match["home_goals"]), int(match["away_goals"]))
     previous = database.execute(
-        "SELECT played_at, competition, home_club_id, away_club_id, home_goals, away_goals FROM matches WHERE external_id=?",
+        "SELECT played_at, competition, matchday, stage, group_name, home_club_id, away_club_id, home_goals, away_goals FROM matches WHERE external_id=?",
         (match["external_id"],),
     ).fetchone()
     if previous and tuple(previous) == values:
         return
     database.execute(
-        """INSERT INTO matches(external_id, played_at, competition, home_club_id, away_club_id, home_goals, away_goals)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO matches(external_id, played_at, competition, matchday, stage, group_name, home_club_id, away_club_id, home_goals, away_goals)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(external_id) DO UPDATE SET played_at=excluded.played_at, competition=excluded.competition,
+           matchday=excluded.matchday, stage=excluded.stage, group_name=excluded.group_name,
            home_club_id=excluded.home_club_id, away_club_id=excluded.away_club_id,
            home_goals=excluded.home_goals, away_goals=excluded.away_goals""",
         (match["external_id"], *values),
@@ -114,8 +122,10 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
         home = _club_id(database, fixture["home_team"], fixture.get("home_crest"))
         away = _club_id(database, fixture["away_team"], fixture.get("away_crest"))
         database.execute(
-            "INSERT INTO fixtures(external_id, scheduled_at, competition, status, home_club_id, away_club_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"], home, away),
+            """INSERT INTO fixtures(external_id, scheduled_at, competition, status, matchday, stage, group_name, home_club_id, away_club_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"],
+             int(fixture["matchday"]) if fixture.get("matchday") else None, fixture.get("stage"), fixture.get("group_name"), home, away),
         )
 
 
