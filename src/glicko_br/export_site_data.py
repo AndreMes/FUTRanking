@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .database import connect, initialise, latest_ranking
+from .database import MAX_INACTIVITY_DAYS, MAX_RANKING_RD, connect, initialise, latest_ranking
 from .glicko2 import Rating, expected_score
 from .database import HOME_ADVANTAGE
 
@@ -81,23 +81,33 @@ def main() -> None:
         parser.error("O banco ainda não possui um ranking para exportar.")
     matches = exported_matches(database)
     teams = []
-    for position, row in enumerate(ranking, 1):
+    excluded_teams = []
+    for row in ranking:
         name = row["name"]
-        teams.append({
-            "position": position,
+        team = {
             "name": name,
             "crest": row["crest_url"],
             "rating": round(row["rating"], 1),
             "rd": round(row["rd"], 1),
+            "last_tracked_at": row["last_tracked_at"],
+            "days_without_tracking": row["days_without_tracking"],
             "performance": team_performance(matches, name),
-        })
+        }
+        if row["eligible"]:
+            team["position"] = len(teams) + 1
+            teams.append(team)
+        else:
+            team["ineligibility_reasons"] = row["ineligibility_reasons"]
+            excluded_teams.append(team)
     payload = {
         "competition": "Campeonato Brasileiro Série A",
         "period_date": ranking[0]["period_date"],
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source": "football-data.org",
         "scope_note": "Desempenho calculado sobre todas as partidas importadas neste ranking.",
+        "eligibility": {"max_inactivity_days": MAX_INACTIVITY_DAYS, "max_rd": MAX_RANKING_RD},
         "teams": teams,
+        "excluded_teams": excluded_teams,
         "matches": matches,
         "fixtures": exported_fixtures(database, ranking),
     }
