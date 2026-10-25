@@ -11,6 +11,9 @@ function matchContext(m) { const parts = [m.competition]; if (m.stage && m.stage
 const contextStyle = document.createElement('style');
 contextStyle.textContent = '.competition{display:block;margin-top:4px;color:#006b54;font-size:.68rem;font-weight:800;line-height:1.25}.list-tools{display:flex;align-items:center;gap:12px;margin:24px 0 12px}.list-search{width:min(100%,420px);padding:11px 13px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0 4px;color:#5b6f68;font-size:.88rem}.pager-actions{display:flex;gap:8px}.pager button{border:1px solid #d8d0c1;border-radius:7px;background:#fffdf8;color:#10231d;padding:7px 10px;font:inherit;font-weight:700;cursor:pointer}.pager button:disabled{opacity:.45;cursor:not-allowed}.empty-list{padding:22px;text-align:center;color:#5b6f68}.chart-card{margin:30px 0 34px;padding:24px;border:1px solid #d8d0c1;border-radius:16px;background:#fffdf8}.chart-card h2{margin:0 0 6px}.chart-card p{margin:0 0 16px;color:#5b6f68}.rating-chart{display:block;width:100%;height:auto;overflow:visible}.rating-chart .grid{stroke:#e5ddd0;stroke-width:1}.rating-chart .axis-label{fill:#687a73;font-size:11px}.rating-chart .line{fill:none;stroke:#006b54;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.rating-chart .point{fill:#f4b942;stroke:#006b54;stroke-width:2}.chart-summary{display:flex;gap:20px;margin-top:12px;color:#5b6f68;font-size:.88rem}.chart-summary strong{color:#10231d}@media(max-width:650px){.list-tools{margin-top:18px}.pager{align-items:flex-start;flex-direction:column}.chart-card{padding:16px}.chart-summary{gap:12px;flex-wrap:wrap}}';
 document.head.append(contextStyle);
+const chartControlsStyle = document.createElement('style');
+chartControlsStyle.textContent = '.chart-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:18px 0}.chart-presets{display:flex;gap:6px;flex-wrap:wrap}.chart-presets button{border:1px solid #d8d0c1;border-radius:99px;background:#fffdf8;color:#10231d;padding:7px 10px;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}.chart-presets button.active{background:#075c42;border-color:#075c42;color:#fff}.chart-date{display:grid;gap:4px;color:#5b6f68;font-size:.72rem;font-weight:750}.chart-date input{border:1px solid #d8d0c1;border-radius:7px;background:#fffdf8;color:#10231d;padding:7px;font:inherit}';
+document.head.append(chartControlsStyle);
 
 function game(m, fixture = false) {
   const score = fixture ? `<span class="score forecast">${m.home_favoritism}% · ${m.away_favoritism}%</span>` : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
@@ -39,12 +42,15 @@ function mountPagedList(host, games, renderGame, options = {}) {
   render();
 }
 
-function ratingChart(matches, team) {
-  const history = matches.filter(m => m.home_team === team || m.away_team === team).map(m => ({
+function teamRatingHistory(matches, team) {
+  return matches.filter(m => m.home_team === team || m.away_team === team).map(m => ({
     at: m.played_at,
     rating: m.home_team === team ? m.home_rating_after : m.away_rating_after,
   })).filter(point => Number.isFinite(point.rating)).sort((a, b) => new Date(a.at) - new Date(b.at));
-  if (!history.length) return `<section class="chart-card"><h2>Trajetória do rating</h2><p>Ainda não há resultados suficientes para desenhar a trajetória deste clube.</p></section>`;
+}
+
+function ratingChartSvg(history, team) {
+  if (!history.length) return `<p class="empty-list">Não há partidas no intervalo selecionado.</p>`;
   const width = 800, height = 260, padding = { top: 20, right: 24, bottom: 42, left: 52 };
   const dates = history.map(point => new Date(point.at).getTime()), ratings = history.map(point => point.rating);
   const minDate = Math.min(...dates), maxDate = Math.max(...dates), minRating = Math.min(...ratings), maxRating = Math.max(...ratings);
@@ -59,7 +65,30 @@ function ratingChart(matches, team) {
   const xLabels = dateTicks.map(value => `<text class="axis-label" x="${x(value)}" y="${height - 14}" text-anchor="middle">${dateLabel(value)}</text>`).join('');
   const points = history.map(point => `<circle class="point" cx="${x(new Date(point.at).getTime())}" cy="${y(point.rating)}" r="3.5"><title>${time(point.at)} · rating ${point.rating.toFixed(1)}</title></circle>`).join('');
   const change = history.at(-1).rating - history[0].rating;
-  return `<section class="chart-card"><h2>Trajetória do rating</h2><p>Cada ponto representa o rating após uma partida rastreada. Passe o cursor ou toque em um ponto para ver data, horário e valor.</p><svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória do rating de ${team}">${grid}<polyline class="line" points="${line}"/>${points}${xLabels}</svg><div class="chart-summary"><span>Primeiro ponto: <strong>${history[0].rating.toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div></section>`;
+  return `<svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória do rating de ${team}">${grid}<polyline class="line" points="${line}"/>${points}${xLabels}</svg><div class="chart-summary"><span>Primeiro ponto: <strong>${history[0].rating.toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div>`;
+}
+
+function mountRatingChart(host, matches, team) {
+  const history = teamRatingHistory(matches, team);
+  if (!history.length) { host.innerHTML = `<section class="chart-card"><h2>Trajetória do rating</h2><p>Ainda não há resultados suficientes para desenhar a trajetória deste clube.</p></section>`; return; }
+  const toInputDate = value => new Date(value).toISOString().slice(0, 10);
+  const first = new Date(history[0].at).getTime(), last = new Date(history.at(-1).at).getTime();
+  host.innerHTML = `<section class="chart-card"><h2>Trajetória do rating</h2><p>Cada ponto representa o rating após uma partida rastreada. Ajuste o período para mudar o eixo X; passe o cursor ou toque em um ponto para ver data, horário e valor.</p><div class="chart-controls"><div class="chart-presets" aria-label="Período do gráfico"><button type="button" data-months="all" class="active">Tudo</button><button type="button" data-months="24">24 meses</button><button type="button" data-months="12">12 meses</button><button type="button" data-months="6">6 meses</button><button type="button" data-months="3">3 meses</button></div><label class="chart-date">De<input type="date" data-range="start" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(first)}"></label><label class="chart-date">Até<input type="date" data-range="end" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(last)}"></label></div><div class="chart-canvas"></div></section>`;
+  const canvas = host.querySelector('.chart-canvas'), startInput = host.querySelector('[data-range="start"]'), endInput = host.querySelector('[data-range="end"]'), buttons = [...host.querySelectorAll('[data-months]')];
+  const render = () => {
+    const start = new Date(`${startInput.value}T00:00:00-03:00`).getTime(), end = new Date(`${endInput.value}T23:59:59-03:00`).getTime();
+    canvas.innerHTML = start <= end ? ratingChartSvg(history.filter(point => { const at = new Date(point.at).getTime(); return at >= start && at <= end; }), team) : '<p class="empty-list">A data inicial deve ser anterior à data final.</p>';
+  };
+  const setPeriod = months => {
+    let start = first;
+    if (months !== 'all') { const cutoff = new Date(last); cutoff.setUTCMonth(cutoff.getUTCMonth() - Number(months)); start = Math.max(first, cutoff.getTime()); }
+    startInput.value = toInputDate(start); endInput.value = toInputDate(last);
+    buttons.forEach(button => button.classList.toggle('active', button.dataset.months === String(months)));
+    render();
+  };
+  buttons.forEach(button => button.addEventListener('click', () => setPeriod(button.dataset.months)));
+  [startInput, endInput].forEach(input => input.addEventListener('change', () => { buttons.forEach(button => button.classList.remove('active')); render(); }));
+  render();
 }
 
 function method() {
@@ -87,7 +116,8 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
     const matches = data.matches.filter(m => m.home_team === name || m.away_team === name), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
-    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div>${ratingChart(matches, name)}<h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
+    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
+    mountRatingChart(el('.chart-host'), matches, name);
     mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
     mountPagedList(el('.results-host'), matches, m => game(m), { pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
   }
