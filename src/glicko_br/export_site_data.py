@@ -71,17 +71,12 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     return fixtures
 
 
-def exported_simulation(database, ranking, fixtures: list[dict[str, object]], *, as_of: datetime | None = None) -> dict[str, object]:
+def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) -> dict[str, object]:
     """Prepara a projeção exclusiva da temporada em andamento da Série A."""
     years = [int(str(fixture["scheduled_at"])[:4]) for fixture in fixtures if fixture.get("scheduled_at")]
     if not years:
         return {"available": False}
     season = max(years)
-    now = as_of or datetime.now(timezone.utc)
-    if any(fixture.get("status") not in ("SCHEDULED", "TIMED") or
-           datetime.fromisoformat(str(fixture["scheduled_at"]).replace("Z", "+00:00")) <= now
-           for fixture in fixtures):
-        return {"available": False, "reason": "pending_results", "season": season}
     matches = [dict(row) for row in database.execute(
         """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
            FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
