@@ -66,7 +66,7 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     for row in rows:
         home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
         home_chance = expected_score(home, away, HOME_ADVANTAGE)
-        fixtures.append({**dict(row), "home_rating": round(home.rating, 1), "away_rating": round(away.rating, 1),
+        fixtures.append({**dict(row), "home_rating": home.rating, "away_rating": away.rating,
                          "home_favoritism": round(home_chance * 100, 1), "away_favoritism": round((1 - home_chance) * 100, 1)})
     return fixtures
 
@@ -145,4 +145,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
