@@ -45,7 +45,7 @@ def match_to_row(match: dict) -> dict[str, str]:
     home_goals, away_goals = score.get("home"), score.get("away")
     if home_goals is None or away_goals is None:
         raise FootballDataError(f"Partida {match.get('id')} sem placar final.")
-    return {"external_id": f"football-data:{match['id']}", "played_at": match["utcDate"], "competition": "Série A", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"], "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", ""), "home_goals": str(home_goals), "away_goals": str(away_goals)}
+    return {"external_id": f"football-data:{match['id']}", "played_at": match["utcDate"], "competition": "Série A", "matchday": str(match.get("matchday") or ""), "stage": match.get("stage") or "", "group_name": match.get("group") or "", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"], "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", ""), "home_goals": str(home_goals), "away_goals": str(away_goals)}
 
 
 def sync_season(database, season: int) -> int:
@@ -62,7 +62,7 @@ def sync_season(database, season: int) -> int:
     store_source_payload(database, "football-data.org", fixture_path, fixture_raw)
     replace_fixtures(database, [
         {"external_id": f"football-data:{match['id']}", "scheduled_at": match["utcDate"], "competition": "Série A",
-         "status": match["status"], "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"],
+         "status": match["status"], "matchday": str(match.get("matchday") or ""), "stage": match.get("stage") or "", "group_name": match.get("group") or "", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"],
          "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", "")}
         for match in fixture_data.get("matches", [])
     ])
