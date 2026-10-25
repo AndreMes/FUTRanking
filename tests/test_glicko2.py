@@ -1,11 +1,12 @@
-from glicko_br.database import connect, initialise, latest_ranking, process_pending, rebuild, store_match
+from glicko_br.database import HOME_ADVANTAGE, _goal_margin_weight, connect, initialise, latest_ranking, process_pending, rebuild, store_match
 from glicko_br.glicko2 import Rating, expected_score, update, OpponentResult
 
 
 def test_home_advantage_changes_only_expectation():
     equal = Rating()
-    assert expected_score(equal, equal, 55) > 0.5
-    assert expected_score(equal, equal, -55) < 0.5
+    assert HOME_ADVANTAGE == 50
+    assert expected_score(equal, equal, 50) > 0.5
+    assert expected_score(equal, equal, -50) < 0.5
 
 
 def test_win_increases_rating_and_reduces_rd():
@@ -13,6 +14,16 @@ def test_win_increases_rating_and_reduces_rd():
     after = update(before, [OpponentResult(Rating(), 1.0, 55)])
     assert after.rating > before.rating
     assert after.rd < before.rd
+
+
+def test_goal_margin_increases_weight_and_rating_effect():
+    before = Rating()
+    one_goal = update(before, [OpponentResult(Rating(), 1.0, 50, _goal_margin_weight(1, 0))])
+    three_goals = update(before, [OpponentResult(Rating(), 1.0, 50, _goal_margin_weight(3, 0))])
+    assert _goal_margin_weight(1, 0) == 1.0
+    assert _goal_margin_weight(3, 0) > 1.0
+    assert _goal_margin_weight(8, 0) == 1.8
+    assert three_goals.rating > one_goal.rating
 
 
 def test_rebuild_is_idempotent_and_stores_history():
