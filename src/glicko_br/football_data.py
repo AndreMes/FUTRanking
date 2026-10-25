@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from .database import replace_fixtures, store_match, store_source_payload
+from .database import replace_fixtures, store_match
 
 BASE_URL = "https://api.football-data.org/v4"
 BRASILEIRAO_SERIE_A = "BSA"
@@ -48,13 +48,19 @@ def match_to_row(match: dict) -> dict[str, str]:
     return {"external_id": f"football-data:{match['id']}", "played_at": match["utcDate"], "competition": "Série A", "matchday": str(match.get("matchday") or ""), "stage": match.get("stage") or "", "group_name": match.get("group") or "", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"], "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", ""), "home_goals": str(home_goals), "away_goals": str(away_goals)}
 
 
-def sync_season(database, season: int) -> int:
+def sync_season(database, season: int, *, date_from: str | None = None, date_to: str | None = None) -> int:
     client = FootballDataClient()
     # Uma única fotografia da temporada evita lacunas entre consultas de estados diferentes.
-    data, raw, request_path = client.get(f"/competitions/{BRASILEIRAO_SERIE_A}/matches", season=season)
-    if not isinstance(data.get("matches"), list) or not data["matches"]:
+    if bool(date_from) != bool(date_to):
+        raise FootballDataError("Informe as duas datas do intervalo.")
+    params = {"season": season}
+    if date_from:
+        params.update(dateFrom=date_from, dateTo=date_to)
+    data, raw, request_path = client.get(f"/competitions/{BRASILEIRAO_SERIE_A}/matches", **params)
+    if not isinstance(data.get("matches"), list) or (not date_from and not data["matches"]):
         raise FootballDataError(f"A fonte não retornou partidas para a temporada {season}; publicação interrompida.")
-    store_source_payload(database, "football-data.org", request_path, raw)
+    if date_from and any(not date_from <= str(match.get("utcDate", ""))[:10] < date_to for match in data["matches"]):
+        raise FootballDataError("A fonte retornou partidas fora do intervalo solicitado; sincronização interrompida.")
     imported = 0
     pending = []
     for match in data["matches"]:
@@ -69,7 +75,6 @@ def sync_season(database, season: int) -> int:
          "status": match["status"], "matchday": str(match.get("matchday") or ""), "stage": match.get("stage") or "", "group_name": match.get("group") or "", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"],
          "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", "")}
         for match in pending
-    ])
+    ], replace=False)
     database.commit()
     return imported
-
