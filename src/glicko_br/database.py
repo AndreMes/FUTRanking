@@ -10,6 +10,8 @@ from .glicko2 import Rating, OpponentResult, update
 
 COMPETITIONS = {"Série A", "Série B", "Série C", "Série D", "Copa do Brasil"}
 HOME_ADVANTAGE = 55.0
+MAX_INACTIVITY_DAYS = 180
+MAX_RANKING_RD = 120.0
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -205,18 +207,27 @@ def process_pending(database: sqlite3.Connection) -> int:
     return len(pending)
 
 
-def latest_ranking(database: sqlite3.Connection) -> list[dict[str, object]]:
+def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> list[dict[str, object]]:
     latest = database.execute("SELECT MAX(processed_at) FROM processed_matches").fetchone()[0]
     if not latest:
         return []
+    as_of = as_of or datetime.now().astimezone().isoformat()
+    reference = max(latest, as_of)
     rows = database.execute(
         """SELECT c.name, c.crest_url, s.rating, s.rd, s.volatility, s.updated_at
            FROM rating_states s JOIN clubs c ON c.id=s.club_id ORDER BY s.rating DESC, s.rd ASC, c.name"""
     ).fetchall()
     ranking = []
     for row in rows:
-        adjusted = _advance_inactive(Rating(row["rating"], row["rd"], row["volatility"]), row["updated_at"], latest)
+        adjusted = _advance_inactive(Rating(row["rating"], row["rd"], row["volatility"]), row["updated_at"], reference)
+        days_without_tracking = max(0, (date.fromisoformat(reference[:10]) - date.fromisoformat(row["updated_at"][:10])).days)
+        reasons = []
+        if days_without_tracking > MAX_INACTIVITY_DAYS:
+            reasons.append("sem resultados rastreados recentes")
+        if adjusted.rd >= MAX_RANKING_RD:
+            reasons.append("incerteza alta")
         ranking.append({"name": row["name"], "crest_url": row["crest_url"], "rating": adjusted.rating, "rd": adjusted.rd,
-                        "volatility": adjusted.volatility, "period_date": latest})
+                        "volatility": adjusted.volatility, "period_date": reference, "last_tracked_at": row["updated_at"],
+                        "days_without_tracking": days_without_tracking, "eligible": not reasons, "ineligibility_reasons": reasons})
     return sorted(ranking, key=lambda row: (-row["rating"], row["rd"], row["name"]))
 
