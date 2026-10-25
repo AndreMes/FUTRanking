@@ -111,7 +111,7 @@ def main() -> None:
         team = {
             "name": name,
             "crest": row["crest_url"],
-            "rating": round(row["rating"], 1),
+            "rating": row["rating"],
             "rd": round(row["rd"], 1),
             "last_tracked_at": row["last_tracked_at"],
             "days_without_tracking": row["days_without_tracking"],
