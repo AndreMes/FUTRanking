@@ -113,11 +113,11 @@ function simulations(data) {
   document.body.innerHTML = shell('Reta final', 'Simulações');
   const simulation = data.simulation;
   if (!simulation?.available) {
-    const reason = simulation?.reason === 'pending_results' ? 'Há partidas em andamento ou com resultado pendente de confirmação. A simulação voltará quando os dados forem atualizados.' : 'A simulação ficará disponível quando houver resultados e fixtures restantes da Série A na fonte de dados.';
-    el('#content').innerHTML = `<section class="panel simulation-unavailable"><p>${reason}</p></section>`;
+    el('#content').innerHTML = `<section class="panel simulation-unavailable"><p>A simulação ficará disponível quando houver resultados e fixtures restantes da Série A na fonte de dados.</p></section>`;
     return;
   }
   el('#content').innerHTML = `<p class="simulation-note">Probabilidades estimadas para a Série A ${simulation.season}, com base em <strong>${simulation.scenarios.toLocaleString('pt-BR')}</strong> cenários simulados. A tabela abaixo parte da situação atual: ${simulation.completed_matches} partidas concluídas e ${simulation.fixtures_remaining} restantes.</p><div class="simulation-grid">${simulationTable(simulation.teams, 'champion_probability', 'Probabilidade de título', 'Chance de terminar em 1º lugar. A apresentação segue a classificação atual por pontos.', true)}${simulationTable(simulation.teams, 'relegation_probability', 'Probabilidade de rebaixamento', 'Chance de terminar entre os quatro últimos.')}</div><section class="simulation-method"><h2>Como estimamos</h2><p>Em cada cenário, cada fixture restante é sorteado de forma independente a partir do rating Glicko-2 atual e do mando de campo. A probabilidade de empate usa a taxa observada de empates da temporada (${percentage(simulation.observed_draw_rate)}), reduzida quando a diferença de rating entre os clubes cresce e limitada entre ${percentage(simulation.draw_limits[0])} e ${percentage(simulation.draw_limits[1])}.</p><p>Ao final, contamos quantas vezes cada clube foi campeão ou terminou no Z-4. Os desempates da simulação seguem pontos, vitórias, saldo de gols, gols pró e nome do clube; para os jogos futuros, uma vitória decisiva adiciona uma margem projetada de um gol. É uma projeção baseada nos dados disponíveis, não uma previsão determinística nem recomendação de aposta.</p></section>`;
+  el('.simulation-method').insertAdjacentHTML('beforeend', '<p>Partidas ainda sem resultado final confirmado, inclusive as que já começaram, são simuladas como se ainda não tivessem começado. A projeção não considera o placar ou o tempo de jogo em andamento e só incorpora o resultado após a próxima coleta.</p>');
 }
 
 function method() {
