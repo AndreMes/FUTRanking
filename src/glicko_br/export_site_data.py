@@ -55,11 +55,14 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
 
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
+    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     rows = database.execute(
         """SELECT f.scheduled_at, f.status, f.competition, f.matchday, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
-           ORDER BY f.scheduled_at"""
+           WHERE f.scheduled_at > ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
+           ORDER BY f.scheduled_at""",
+        (now,),
     ).fetchall()
     fixtures = []
     for row in rows:
