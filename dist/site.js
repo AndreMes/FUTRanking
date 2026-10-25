@@ -25,7 +25,9 @@ clubLinkStyle.textContent = '.club-link{color:inherit;text-decoration:none}.club
 document.head.append(clubLinkStyle);
 
 function game(m, fixture = false) {
-  const score = fixture ? `<span class="score forecast">${m.home_favoritism}% · ${m.away_favoritism}%</span>` : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
+  const labels = { IN_PLAY: 'Em andamento', PAUSED: 'Intervalo', POSTPONED: 'Adiado', SUSPENDED: 'Suspenso', CANCELLED: 'Cancelado', FINISHED: 'Aguardando placar' };
+  const pending = fixture && (labels[m.status] || (new Date(m.scheduled_at).getTime() <= Date.now() ? 'Aguardando resultado' : null));
+  const score = fixture ? (pending ? `<span class="score forecast">${pending}</span>` : `<span class="score forecast">${m.home_favoritism}% · ${m.away_favoritism}%</span>`) : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
   const homeMeta = fixture ? `Rating ${m.home_rating.toFixed(1)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${m.away_rating.toFixed(1)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
   return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest, true)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest, true)}<small class="rating">${awayMeta}</small></span></article>`;
@@ -111,7 +113,8 @@ function simulations(data) {
   document.body.innerHTML = shell('Reta final', 'Simulações');
   const simulation = data.simulation;
   if (!simulation?.available) {
-    el('#content').innerHTML = `<section class="panel simulation-unavailable"><p>A simulação ficará disponível quando houver resultados e fixtures restantes da Série A na fonte de dados.</p></section>`;
+    const reason = simulation?.reason === 'pending_results' ? 'Há partidas em andamento ou com resultado pendente de confirmação. A simulação voltará quando os dados forem atualizados.' : 'A simulação ficará disponível quando houver resultados e fixtures restantes da Série A na fonte de dados.';
+    el('#content').innerHTML = `<section class="panel simulation-unavailable"><p>${reason}</p></section>`;
     return;
   }
   el('#content').innerHTML = `<p class="simulation-note">Probabilidades estimadas para a Série A ${simulation.season}, com base em <strong>${simulation.scenarios.toLocaleString('pt-BR')}</strong> cenários simulados. A tabela abaixo parte da situação atual: ${simulation.completed_matches} partidas concluídas e ${simulation.fixtures_remaining} restantes.</p><div class="simulation-grid">${simulationTable(simulation.teams, 'champion_probability', 'Probabilidade de título', 'Chance de terminar em 1º lugar. A apresentação segue a classificação atual por pontos.', true)}${simulationTable(simulation.teams, 'relegation_probability', 'Probabilidade de rebaixamento', 'Chance de terminar entre os quatro últimos.')}</div><section class="simulation-method"><h2>Como estimamos</h2><p>Em cada cenário, cada fixture restante é sorteado de forma independente a partir do rating Glicko-2 atual e do mando de campo. A probabilidade de empate usa a taxa observada de empates da temporada (${percentage(simulation.observed_draw_rate)}), reduzida quando a diferença de rating entre os clubes cresce e limitada entre ${percentage(simulation.draw_limits[0])} e ${percentage(simulation.draw_limits[1])}.</p><p>Ao final, contamos quantas vezes cada clube foi campeão ou terminou no Z-4. Os desempates da simulação seguem pontos, vitórias, saldo de gols, gols pró e nome do clube; para os jogos futuros, uma vitória decisiva adiciona uma margem projetada de um gol. É uma projeção baseada nos dados disponíveis, não uma previsão determinística nem recomendação de aposta.</p></section>`;
