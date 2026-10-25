@@ -16,6 +16,8 @@ def main() -> None:
     parser.add_argument("--database", required=True)
     parser.add_argument("--csv")
     parser.add_argument("--season", type=int, help="Ano de início da temporada na API-Football")
+    parser.add_argument("--date-from", help="Data inicial inclusiva (AAAA-MM-DD)")
+    parser.add_argument("--date-to", help="Data final exclusiva (AAAA-MM-DD)")
     args = parser.parse_args()
     database_path = Path(args.database)
     database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,7 +53,7 @@ def main() -> None:
         if not args.season:
             parser.error("sync-football-data exige --season")
         try:
-            print(f"{sync_football_data_season(database, args.season)} partidas importadas/atualizadas.")
+            print(f"{sync_football_data_season(database, args.season, date_from=args.date_from, date_to=args.date_to)} partidas importadas/atualizadas.")
         except FootballDataError as error:
             parser.error(str(error))
     elif args.command == "ranking":
@@ -63,4 +65,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
