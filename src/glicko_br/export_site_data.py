@@ -9,6 +9,7 @@ from pathlib import Path
 from .database import MAX_INACTIVITY_DAYS, MAX_RANKING_RD, connect, initialise, latest_ranking
 from .glicko2 import Rating, expected_score
 from .database import HOME_ADVANTAGE
+from .simulation import simulate_season
 
 
 def exported_matches(database) -> list[dict[str, object]]:
@@ -69,6 +70,28 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     return fixtures
 
 
+def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) -> dict[str, object]:
+    """Prepara a projeção exclusiva da temporada em andamento da Série A."""
+    years = [int(str(fixture["scheduled_at"])[:4]) for fixture in fixtures if fixture.get("scheduled_at")]
+    if not years:
+        return {"available": False}
+    season = max(years)
+    matches = [dict(row) for row in database.execute(
+        """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
+           FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
+           WHERE m.competition='Série A' AND m.played_at >= ? AND m.played_at < ?""",
+        (f"{season}-01-01", f"{season + 1}-01-01"),
+    ).fetchall()]
+    ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
+    simulation = simulate_season(matches, fixtures, ratings, seed=season)
+    simulation["season"] = season
+    if simulation["available"]:
+        crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
+        for team in simulation["teams"]:
+            team["crest"] = crests.get(team["name"])
+    return simulation
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -99,6 +122,7 @@ def main() -> None:
         else:
             team["ineligibility_reasons"] = row["ineligibility_reasons"]
             excluded_teams.append(team)
+    fixtures = exported_fixtures(database, ranking)
     payload = {
         "competition": "Campeonato Brasileiro Série A",
         "period_date": ranking[0]["period_date"],
@@ -109,7 +133,8 @@ def main() -> None:
         "teams": teams,
         "excluded_teams": excluded_teams,
         "matches": matches,
-        "fixtures": exported_fixtures(database, ranking),
+        "fixtures": fixtures,
+        "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
