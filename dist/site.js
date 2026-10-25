@@ -22,7 +22,7 @@ function method() {
 fetch('./data/ranking.json').then(r => r.json()).then(data => {
   if (page === 'ranking') {
     document.body.innerHTML = shell('Ranking');
-    el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Clique em um clube.</p><section class="panel"><div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${data.teams.map(t => `<a class="row rank" href="clube.html?time=${encodeURIComponent(t.name)}"><span>${t.position}º</span><b>${club(t.name, t.crest)}</b><strong>${t.rating.toFixed(1)}</strong></a>`).join('')}</section>`;
+    el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Inclui apenas clubes com jogos rastreados nos últimos 180 dias e RD abaixo de 120. Clique em um clube.</p><section class="panel"><div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${data.teams.map(t => `<a class="row rank" href="clube.html?time=${encodeURIComponent(t.name)}"><span>${t.position}º</span><b>${club(t.name, t.crest)}</b><strong>${t.rating.toFixed(1)}</strong></a>`).join('')}</section>`;
   }
   if (page === 'resultados') {
     document.body.innerHTML = shell('Últimos resultados', 'Transparência');
@@ -39,6 +39,9 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
     el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><h2>Próximos fixtures</h2><section class="panel">${fixtures.map(m => game(m, true)).join('') || '<p style="padding:20px">Nenhum fixture futuro disponível.</p>'}</section><h2>Últimos resultados</h2><section class="panel">${matches.map(m => game(m)).join('')}</section>`;
   }
-  if (page === 'method') method();
+  if (page === 'method') {
+    method();
+    el('#content').insertAdjacentHTML('beforeend', `<h2>Elegibilidade do ranking</h2><p>O ranking principal só inclui clubes com resultado rastreado nos últimos <strong>180 dias</strong> e <strong>RD abaixo de 120</strong>. Esses limites evitam que uma força antiga, sem dados recentes, seja apresentada como força atual. Clubes fora desses critérios mantêm seu histórico, mas não recebem posição até voltarem a ter dados suficientes.</p>`);
+  }
 }).catch(() => { document.body.innerHTML = shell('Dados indisponíveis'); });
 
