@@ -1,4 +1,4 @@
-from glicko_br.database import connect, initialise, latest_ranking, rebuild, store_match
+from glicko_br.database import connect, initialise, latest_ranking, process_pending, rebuild, store_match
 from glicko_br.glicko2 import Rating, expected_score, update, OpponentResult
 
 
@@ -45,3 +45,15 @@ def test_inactivity_between_seasons_increases_rd():
     rebuild(database)
     azul = next(row for row in latest_ranking(database) if row["name"] == "Azul")
     assert azul["rd"] > 290
+
+
+def test_processes_only_new_matches_in_timestamp_order():
+    database = connect(":memory:")
+    initialise(database)
+    store_match(database, {"external_id": "late", "played_at": "2025-04-01T22:00:00Z", "competition": "Série A", "home_team": "Azul", "away_team": "Verde", "home_goals": "0", "away_goals": "1"})
+    store_match(database, {"external_id": "early", "played_at": "2025-04-01T18:00:00Z", "competition": "Série A", "home_team": "Azul", "away_team": "Verde", "home_goals": "1", "away_goals": "0"})
+    assert process_pending(database) == 2
+    first = [(row["name"], row["rating"]) for row in latest_ranking(database)]
+    assert process_pending(database) == 0
+    assert first == [(row["name"], row["rating"]) for row in latest_ranking(database)]
+
