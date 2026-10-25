@@ -14,7 +14,7 @@ from .database import HOME_ADVANTAGE
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
-        """SELECT m.external_id, m.played_at, m.competition, home.name AS home_team, home.crest_url AS home_crest,
+        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
                   home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
                   away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
@@ -55,7 +55,7 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
     rows = database.execute(
-        """SELECT f.scheduled_at, f.status, home.name AS home_team, home.crest_url AS home_crest,
+        """SELECT f.scheduled_at, f.status, f.competition, f.matchday, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
            ORDER BY f.scheduled_at LIMIT 20"""
