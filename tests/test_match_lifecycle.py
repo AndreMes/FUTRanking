@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 from glicko_br.database import connect, initialise
@@ -22,7 +21,9 @@ def test_pending_match_stays_visible_until_result_arrives():
         fixtures = exported_fixtures(database, [])
         assert len(fixtures) == 1 and fixtures[0]["status"] == "IN_PLAY"
         assert not exported_matches(database)
-        assert exported_simulation(database, [], fixtures, as_of=datetime(2026, 10, 24, 20, tzinfo=timezone.utc))["reason"] == "pending_results"
+        with patch("glicko_br.export_site_data.simulate_season", return_value={"available": True, "teams": []}) as simulate:
+            assert exported_simulation(database, [], fixtures)["available"]
+            assert simulate.call_args.args[1] == fixtures
         match["status"] = "FINISHED"
         match["score"]["fullTime"] = {"home": 2, "away": 1}
         sync_season(database, 2026)
