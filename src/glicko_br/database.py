@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from .glicko2 import DEFAULT_RATING, Rating, OpponentResult, update
@@ -71,7 +71,9 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     competition = match["competition"].strip()
     if competition not in COMPETITIONS:
         raise ValueError(f"Competição fora do escopo do MVP: {competition}")
-    played_at = date.fromisoformat(match["played_at"][:10]).isoformat()
+    played_at = match["played_at"]
+    # Conserva o horário em UTC para a apresentação posterior em Brasília.
+    datetime.fromisoformat(played_at.replace("Z", "+00:00"))
     home = _club_id(database, match["home_team"], match.get("home_crest"))
     away = _club_id(database, match["away_team"], match.get("away_crest"))
     database.execute(
@@ -116,7 +118,7 @@ def rebuild(database: sqlite3.Connection) -> int:
     ratings: dict[int, Rating] = {}
     by_week: dict[date, list[sqlite3.Row]] = defaultdict(list)
     for row in rows:
-        played_on = date.fromisoformat(row["played_at"])
+        played_on = date.fromisoformat(row["played_at"][:10])
         by_week[played_on - timedelta(days=played_on.weekday())].append(row)
 
     previous_week: date | None = None
