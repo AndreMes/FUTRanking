@@ -5,22 +5,23 @@ o Campeonato Brasileiro Série A.
 
 ## Princípios do modelo
 
-- O rating, RD e volatilidade de cada clube são guardados após cada semana com jogos.
-- Todas as partidas da mesma semana são calculadas contra os ratings do início
-  daquele período, evitando uma ordem artificial entre jogos simultâneos.
-- Semanas sem partidas fazem o RD crescer; a confiança do rating cai durante a
-  pausa entre temporadas.
+- Cada resultado é processado em ordem de `played_at` (UTC). Jogos com o mesmo
+  horário exato formam um único grupo, pois não existe ordem temporal entre eles.
+- O estado mais recente de cada clube é persistido. Nas atualizações diárias,
+  somente resultados novos são calculados; não há recálculo do histórico inteiro.
+- Períodos semanais sem jogo para um clube fazem o RD crescer quando ele volta a
+  jogar; a confiança do rating cai durante a pausa entre temporadas.
 - A vantagem de mando é configurável (55 pontos de rating por padrão) e não
   altera o rating publicado; ela afeta somente a expectativa pré-jogo.
-- O banco conserva resultados brutos e recria os snapshots derivados sempre que
-  uma correção for recebida. Assim, o ranking é reproduzível e auditável.
+- O banco conserva resultados brutos. Uma correção retroativa dispara uma
+  reconstrução de segurança; esse caminho é excepcional e auditável.
 
 ## Uso local
 
 ```powershell
 python -m glicko_br.cli init --database data/rankings.sqlite3
 python -m glicko_br.cli ingest --database data/rankings.sqlite3 --csv caminho\partidas.csv
-python -m glicko_br.cli rebuild --database data/rankings.sqlite3
+python -m glicko_br.cli process --database data/rankings.sqlite3
 python -m glicko_br.cli ranking --database data/rankings.sqlite3
 ```
 
@@ -36,7 +37,7 @@ ambiente `API_FOOTBALL_KEY` (nunca no código ou banco):
 ```powershell
 $env:API_FOOTBALL_KEY = "sua-chave"
 python -m glicko_br.cli sync-api-football --database data/rankings.sqlite3 --season 2026
-python -m glicko_br.cli rebuild --database data/rankings.sqlite3
+python -m glicko_br.cli process --database data/rankings.sqlite3
 ```
 
 Para atualizar a temporada atual e o arquivo do site em uma única execução:
@@ -56,13 +57,13 @@ Para a fonte gratuita e oficial da Série A, crie um token em
 ```powershell
 $env:FOOTBALL_DATA_TOKEN = "seu-token"
 python -m glicko_br.cli sync-football-data --database data/rankings.sqlite3 --season 2024
-python -m glicko_br.cli rebuild --database data/rankings.sqlite3
+python -m glicko_br.cli process --database data/rankings.sqlite3
 ```
 
 ## GitHub Pages e atualização automática
 
 O workflow `.github/workflows/update-and-deploy.yml` é executado diariamente,
-recria o ranking usando as temporadas disponíveis e publica `dist/` no GitHub
+processa apenas resultados novos das temporadas disponíveis e publica `dist/` no GitHub
 Pages. Crie o secret `FOOTBALL_DATA_TOKEN` em *Settings → Secrets and variables
 → Actions* do repositório. No GitHub Pages, selecione *GitHub Actions* como
 fonte de publicação.
@@ -75,5 +76,6 @@ do modelo e armazena as respostas originais. Use com moderação:
 
 ```powershell
 python -m glicko_br.cli sync-sofascore --database data/rankings.sqlite3 --season 2024
-python -m glicko_br.cli rebuild --database data/rankings.sqlite3
+python -m glicko_br.cli process --database data/rankings.sqlite3
 ```
+
