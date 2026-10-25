@@ -55,14 +55,12 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
 
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     rows = database.execute(
         """SELECT f.scheduled_at, f.status, f.competition, f.matchday, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
-           WHERE f.scheduled_at > ? AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
+           WHERE NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
            ORDER BY f.scheduled_at""",
-        (now,),
     ).fetchall()
     fixtures = []
     for row in rows:
@@ -73,12 +71,17 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     return fixtures
 
 
-def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) -> dict[str, object]:
+def exported_simulation(database, ranking, fixtures: list[dict[str, object]], *, as_of: datetime | None = None) -> dict[str, object]:
     """Prepara a projeção exclusiva da temporada em andamento da Série A."""
     years = [int(str(fixture["scheduled_at"])[:4]) for fixture in fixtures if fixture.get("scheduled_at")]
     if not years:
         return {"available": False}
     season = max(years)
+    now = as_of or datetime.now(timezone.utc)
+    if any(fixture.get("status") not in ("SCHEDULED", "TIMED") or
+           datetime.fromisoformat(str(fixture["scheduled_at"]).replace("Z", "+00:00")) <= now
+           for fixture in fixtures):
+        return {"available": False, "reason": "pending_results", "season": season}
     matches = [dict(row) for row in database.execute(
         """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
            FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
