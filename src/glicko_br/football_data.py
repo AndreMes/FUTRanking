@@ -50,21 +50,25 @@ def match_to_row(match: dict) -> dict[str, str]:
 
 def sync_season(database, season: int) -> int:
     client = FootballDataClient()
-    data, raw, request_path = client.get(f"/competitions/{BRASILEIRAO_SERIE_A}/matches", season=season, status="FINISHED")
+    # Uma única fotografia da temporada evita lacunas entre consultas de estados diferentes.
+    data, raw, request_path = client.get(f"/competitions/{BRASILEIRAO_SERIE_A}/matches", season=season)
+    if not isinstance(data.get("matches"), list) or not data["matches"]:
+        raise FootballDataError(f"A fonte não retornou partidas para a temporada {season}; publicação interrompida.")
     store_source_payload(database, "football-data.org", request_path, raw)
     imported = 0
-    for match in data.get("matches", []):
-        store_match(database, match_to_row(match))
-        imported += 1
-    fixture_data, fixture_raw, fixture_path = client.get(
-        f"/competitions/{BRASILEIRAO_SERIE_A}/matches", season=season, status="SCHEDULED,TIMED"
-    )
-    store_source_payload(database, "football-data.org", fixture_path, fixture_raw)
+    pending = []
+    for match in data["matches"]:
+        score = (match.get("score") or {}).get("fullTime") or {}
+        if match.get("status") == "FINISHED" and score.get("home") is not None and score.get("away") is not None:
+            store_match(database, match_to_row(match))
+            imported += 1
+        else:
+            pending.append(match)
     replace_fixtures(database, [
         {"external_id": f"football-data:{match['id']}", "scheduled_at": match["utcDate"], "competition": "Série A",
          "status": match["status"], "matchday": str(match.get("matchday") or ""), "stage": match.get("stage") or "", "group_name": match.get("group") or "", "home_team": match["homeTeam"]["name"], "away_team": match["awayTeam"]["name"],
          "home_crest": match["homeTeam"].get("crest", ""), "away_crest": match["awayTeam"].get("crest", "")}
-        for match in fixture_data.get("matches", [])
+        for match in pending
     ])
     database.commit()
     return imported
