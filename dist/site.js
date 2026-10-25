@@ -3,7 +3,10 @@ const date = v => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).form
 const time = v => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(v));
 const matchTime = v => v.includes('T') ? time(v) : date(v);
 const crest = (url, name) => url ? `<img class="crest" src="${url}" alt="Brasão do ${name}" loading="lazy">` : '';
-const club = (name, url) => `<span class="club">${crest(url, name)}${name}</span>`;
+const club = (name, url, link = false) => {
+  const content = `${crest(url, name)}${name}`;
+  return link ? `<a class="club club-link" href="clube.html?time=${encodeURIComponent(name)}">${content}</a>` : `<span class="club">${content}</span>`;
+};
 const impact = value => `<span class="impact ${value >= 0 ? 'positive' : 'negative'}">${value >= 0 ? '+' : ''}${value?.toFixed(1) ?? '—'}</span>`;
 const shell = (title, kicker = 'Série A · Brasil') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav><a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="proximos-jogos.html">Próximos jogos</a><a href="simulacoes.html">Simulações</a><a href="metodo.html">Método</a></nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap">FUTRanking · Glicko-2 para o futebol brasileiro</div></footer>`;
 const stageName = stage => ({LAST_16: 'Oitavas de final', QUARTER_FINALS: 'Quartas de final', SEMI_FINALS: 'Semifinal', FINAL: 'Final', THIRD_PLACE: 'Disputa do 3º lugar'}[stage] || stage?.replaceAll('_', ' '));
@@ -17,12 +20,15 @@ document.head.append(chartControlsStyle);
 const simulationStyle = document.createElement('style');
 simulationStyle.textContent = '.simulation-note{max-width:760px;margin-bottom:26px}.simulation-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}.simulation-grid h2{margin-top:0}.simulation-row{grid-template-columns:40px 1fr 66px 82px}.simulation-row strong{text-align:right}.simulation-method{max-width:820px;margin-top:42px;padding:24px;border-left:4px solid #075c42;background:#e9f0e8}.simulation-method h2{margin-top:0}.simulation-method p{color:#34473f}.simulation-unavailable{padding:26px}@media(max-width:780px){.simulation-grid{grid-template-columns:1fr}.simulation-row{grid-template-columns:32px 1fr 54px 72px;font-size:.82rem}.top nav{flex-wrap:wrap;justify-content:center}}';
 document.head.append(simulationStyle);
+const clubLinkStyle = document.createElement('style');
+clubLinkStyle.textContent = '.club-link{color:inherit;text-decoration:none}.club-link:hover,.club-link:focus-visible{color:#075c42;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}';
+document.head.append(clubLinkStyle);
 
 function game(m, fixture = false) {
   const score = fixture ? `<span class="score forecast">${m.home_favoritism}% · ${m.away_favoritism}%</span>` : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
   const homeMeta = fixture ? `Rating ${m.home_rating.toFixed(1)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${m.away_rating.toFixed(1)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
-  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest)}<small class="rating">${awayMeta}</small></span></article>`;
+  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest, true)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest, true)}<small class="rating">${awayMeta}</small></span></article>`;
 }
 
 const searchableText = m => [m.home_team, m.away_team, m.competition, m.matchday && `rodada ${m.matchday}`, stageName(m.stage), m.group_name, m.played_at, m.scheduled_at].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -98,7 +104,7 @@ const percentage = value => `${(value * 100).toFixed(2)}%`;
 
 function simulationTable(teams, field, title, detail, orderByPoints = false) {
   const rows = teams.filter(team => Number((team[field] * 100).toFixed(2)) > 0).sort((a, b) => orderByPoints ? b.points - a.points || a.position - b.position : b[field] - a[field] || a.position - b.position);
-  return `<div><h2>${title}</h2><p>${detail}</p><section class="panel"><div class="row simulation-row table-head"><span>Pos.</span><span>Clube</span><span>Pontos</span><span>Prob.</span></div>${rows.map(team => `<div class="row simulation-row"><span>${team.position}º</span><b>${club(team.name, team.crest)}</b><span>${team.points}</span><strong>${percentage(team[field])}</strong></div>`).join('')}</section></div>`;
+  return `<div><h2>${title}</h2><p>${detail}</p><section class="panel"><div class="row simulation-row table-head"><span>Pos.</span><span>Clube</span><span>Pontos</span><span>Prob.</span></div>${rows.map(team => `<div class="row simulation-row"><span>${team.position}º</span><b>${club(team.name, team.crest, true)}</b><span>${team.points}</span><strong>${percentage(team[field])}</strong></div>`).join('')}</section></div>`;
 }
 
 function simulations(data) {
@@ -132,11 +138,11 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
     mountPagedList(el('.list-host'), data.fixtures, m => game(m, true), { search: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum jogo futuro corresponde à busca.' });
   }
   if (page === 'club') {
-    const name = q.get('time'), team = data.teams.find(t => t.name === name);
+    const name = q.get('time'), team = [...data.teams, ...(data.excluded_teams || [])].find(t => t.name === name);
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
     const matches = data.matches.filter(m => m.home_team === name || m.away_team === name), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
-    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position}º</b><span>posição</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
+    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><div class="stats"><div class="stat"><b>${team.position ? `${team.position}º` : '—'}</b><span>${team.position ? 'posição' : 'fora do ranking'}</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
     mountRatingChart(el('.chart-host'), matches, name);
     mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
     mountPagedList(el('.results-host'), matches, m => game(m), { pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
