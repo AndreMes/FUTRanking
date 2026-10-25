@@ -58,7 +58,7 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
         """SELECT f.scheduled_at, f.status, f.competition, f.matchday, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
-           ORDER BY f.scheduled_at LIMIT 20"""
+           ORDER BY f.scheduled_at"""
     ).fetchall()
     fixtures = []
     for row in rows:
