@@ -7,7 +7,7 @@ on:
     - cron: "15 9 * * *"
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -23,27 +23,50 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Restaurar banco persistente
+        id: state
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch=futranking-data
+          remote_ref=$(git ls-remote --heads origin "refs/heads/$branch")
+          if [ -n "$remote_ref" ]; then
+            git fetch origin "$branch"
+            git worktree add -b "$branch" "$RUNNER_TEMP/futranking-state" FETCH_HEAD
+            test -s "$RUNNER_TEMP/futranking-state/rankings.sqlite3"
+            test -s "$RUNNER_TEMP/futranking-state/last-sync.txt"
+            cp "$RUNNER_TEMP/futranking-state/rankings.sqlite3" data/rankings.sqlite3
+            cp "$RUNNER_TEMP/futranking-state/last-sync.txt" data/last-sync.txt
+          else
+            git worktree add --detach "$RUNNER_TEMP/futranking-state" HEAD
+            git -C "$RUNNER_TEMP/futranking-state" switch --orphan "$branch"
+            PYTHONPATH=src python -m glicko_br.seed_site --database data/rankings.sqlite3
+            echo 'Primeira execução: carregamento histórico completo.'
+          fi
       - name: Montar ranking atualizado
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
         run: |
           test -n "$FOOTBALL_DATA_TOKEN"
           export PYTHONPATH=src
-          sync_season() {
-            for attempt in 1 2 3; do
-              python -m glicko_br.cli sync-football-data --database data/rankings.sqlite3 --season "$1" && return 0
-              if [ "$attempt" -lt 3 ]; then
-                echo "Limite temporário da API; nova tentativa em 60 segundos."
-                sleep 60
-              fi
-            done
-            return 1
-          }
-          for season in 2023 2024 2025 2026; do
-            sync_season "$season"
-          done
+          full=()
+          if [ "$(date -u +%d)" = "01" ]; then full=(--full); fi
+          python -m glicko_br.sync_workflow --database data/rankings.sqlite3 --watermark data/last-sync.txt "${full[@]}"
           python -m glicko_br.cli process --database data/rankings.sqlite3
           python -m glicko_br.export_site_data --database data/rankings.sqlite3 --output dist/data/ranking.json
+      - name: Salvar banco para a próxima execução
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp data/rankings.sqlite3 "$RUNNER_TEMP/futranking-state/rankings.sqlite3"
+          cp data/last-sync.txt "$RUNNER_TEMP/futranking-state/last-sync.txt"
+          git -C "$RUNNER_TEMP/futranking-state" add -f rankings.sqlite3 last-sync.txt
+          if ! git -C "$RUNNER_TEMP/futranking-state" diff --cached --quiet; then
+            git -C "$RUNNER_TEMP/futranking-state" commit -m "Atualizar banco FUTRanking"
+            git -C "$RUNNER_TEMP/futranking-state" push origin futranking-data
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -58,4 +81,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
