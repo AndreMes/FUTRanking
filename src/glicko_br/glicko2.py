@@ -24,6 +24,7 @@ class OpponentResult:
     opponent: Rating
     score: float  # 1 vitória, 0,5 empate, 0 derrota
     rating_offset: float = 0.0
+    weight: float = 1.0  # evidência relativa da partida; 1,0 preserva o Glicko-2 padrão
 
 
 def _g(phi: float) -> float:
@@ -80,11 +81,12 @@ def update(player: Rating, results: Iterable[OpponentResult], tau: float = TAU) 
         opponent_phi = outcome.opponent.rd / SCALE
         g = _g(opponent_phi)
         expectation = expected_score(player, outcome.opponent, outcome.rating_offset)
-        terms.append((g, expectation, outcome.score))
-    variance = 1.0 / sum(g * g * expectation * (1.0 - expectation) for g, expectation, _ in terms)
-    delta = variance * sum(g * (score - expectation) for g, expectation, score in terms)
+        terms.append((g, expectation, outcome.score, outcome.weight))
+    variance = 1.0 / sum(weight * g * g * expectation * (1.0 - expectation) for g, expectation, _, weight in terms)
+    delta = variance * sum(weight * g * (score - expectation) for g, expectation, score, weight in terms)
     volatility = _new_volatility(phi, delta, variance, player.volatility, tau)
     phi_star = sqrt(phi * phi + volatility * volatility)
     new_phi = 1.0 / sqrt(1.0 / (phi_star * phi_star) + 1.0 / variance)
-    new_mu = mu + new_phi * new_phi * sum(g * (score - expectation) for g, expectation, score in terms)
+    new_mu = mu + new_phi * new_phi * sum(weight * g * (score - expectation) for g, expectation, score, weight in terms)
     return Rating(DEFAULT_RATING + SCALE * new_mu, SCALE * new_phi, volatility)
+
