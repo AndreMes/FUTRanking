@@ -125,14 +125,18 @@ def store_source_payload(database: sqlite3.Connection, source: str, request_path
     )
 
 
-def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]]) -> None:
-    database.execute("DELETE FROM fixtures WHERE competition='Série A'")
+def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]], *, replace: bool = True) -> None:
+    if replace:
+        database.execute("DELETE FROM fixtures WHERE competition='Série A'")
     for fixture in fixtures:
         home = _club_id(database, fixture["home_team"], fixture.get("home_crest"))
         away = _club_id(database, fixture["away_team"], fixture.get("away_crest"))
         database.execute(
             """INSERT INTO fixtures(external_id, scheduled_at, competition, status, matchday, stage, group_name, home_club_id, away_club_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(external_id) DO UPDATE SET scheduled_at=excluded.scheduled_at, competition=excluded.competition,
+               status=excluded.status, matchday=excluded.matchday, stage=excluded.stage, group_name=excluded.group_name,
+               home_club_id=excluded.home_club_id, away_club_id=excluded.away_club_id""",
             (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"],
              int(fixture["matchday"]) if fixture.get("matchday") else None, fixture.get("stage"), fixture.get("group_name"), home, away),
         )
@@ -264,4 +268,3 @@ def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> li
                         "volatility": adjusted.volatility, "period_date": reference, "last_tracked_at": row["updated_at"],
                         "days_without_tracking": days_without_tracking, "eligible": not reasons, "ineligibility_reasons": reasons})
     return sorted(ranking, key=lambda row: (-row["rating"], row["rd"], row["name"]))
-
