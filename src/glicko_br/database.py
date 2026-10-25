@@ -77,6 +77,7 @@ def initialise(database: sqlite3.Connection) -> None:
         for column, kind in (("matchday", "INTEGER"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
 
 
@@ -112,6 +113,7 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
            home_goals=excluded.home_goals, away_goals=excluded.away_goals""",
         (match["external_id"], *values),
     )
+    database.execute("DELETE FROM fixtures WHERE external_id=?", (match["external_id"],))
     # Jogo novo ou corrigido precisa ser processado; jogos idênticos não voltam à fila.
     database.execute("DELETE FROM processed_matches WHERE external_id=?", (match["external_id"],))
 
@@ -134,6 +136,8 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
             (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"],
              int(fixture["matchday"]) if fixture.get("matchday") else None, fixture.get("stage"), fixture.get("group_name"), home, away),
         )
+    # A fonte pode manter por alguns minutos um fixture que já chegou no feed de resultados.
+    database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
 
 
 def _advance_inactive(rating: Rating, since: str | None, until: str) -> Rating:
