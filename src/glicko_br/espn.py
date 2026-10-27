@@ -23,7 +23,7 @@ class EspnError(RuntimeError):
 
 
 class EspnClient:
-    def get_scoreboard(self, league: str, *, dates: str) -> tuple[dict, str, str]:
+    def get_scoreboard(self, league: str, *, dates: str) -> tuple[dict, str]:
         query = urlencode({"dates": dates, "limit": 1000})
         request_path = f"/{league}/scoreboard?{query}"
         request = Request(f"{BASE_URL}{request_path}", headers={"Accept": "application/json"})
