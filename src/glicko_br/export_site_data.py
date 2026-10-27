@@ -73,10 +73,11 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
 
 def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) -> dict[str, object]:
     """Prepara a projeção exclusiva da temporada em andamento da Série A."""
-    years = [int(str(fixture["scheduled_at"])[:4]) for fixture in fixtures if fixture.get("scheduled_at")]
-    if not years:
-        return {"available": False}
-    season = max(years)
+    season = datetime.now(timezone.utc).year
+    serie_a_fixtures = [
+        fixture for fixture in fixtures
+        if fixture["competition"] == "Série A" and str(fixture["scheduled_at"])[:4] == str(season)
+    ]
     matches = [dict(row) for row in database.execute(
         """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
            FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
@@ -84,13 +85,38 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
         (f"{season}-01-01", f"{season + 1}-01-01"),
     ).fetchall()]
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
-    simulation = simulate_season(matches, fixtures, ratings, seed=season)
+    simulation = simulate_season(matches, serie_a_fixtures, ratings, seed=season)
     simulation["season"] = season
     if simulation["available"]:
         crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
         for team in simulation["teams"]:
             team["crest"] = crests.get(team["name"])
     return simulation
+
+
+def current_divisions(database) -> dict[str, set[str]]:
+    """Identifica as divisões nacionais disputadas por cada clube na temporada atual."""
+    season = str(datetime.now(timezone.utc).year)
+    divisions: dict[str, set[str]] = {}
+    rows = database.execute(
+        """SELECT competition, team FROM (
+               SELECT m.competition, home.name AS team FROM matches m JOIN clubs home ON home.id=m.home_club_id
+                WHERE m.competition IN ('Série A', 'Série B', 'Série C') AND m.played_at LIKE ?
+               UNION
+               SELECT m.competition, away.name AS team FROM matches m JOIN clubs away ON away.id=m.away_club_id
+                WHERE m.competition IN ('Série A', 'Série B', 'Série C') AND m.played_at LIKE ?
+               UNION
+               SELECT f.competition, home.name AS team FROM fixtures f JOIN clubs home ON home.id=f.home_club_id
+                WHERE f.competition IN ('Série A', 'Série B', 'Série C') AND f.scheduled_at LIKE ?
+               UNION
+               SELECT f.competition, away.name AS team FROM fixtures f JOIN clubs away ON away.id=f.away_club_id
+                WHERE f.competition IN ('Série A', 'Série B', 'Série C') AND f.scheduled_at LIKE ?
+           )""",
+        (f"{season}%", f"{season}%", f"{season}%", f"{season}%"),
+    ).fetchall()
+    for row in rows:
+        divisions.setdefault(row["team"], set()).add(row["competition"])
+    return divisions
 
 
 def main() -> None:
@@ -104,6 +130,7 @@ def main() -> None:
     if not ranking:
         parser.error("O banco ainda não possui um ranking para exportar.")
     matches = exported_matches(database)
+    divisions = current_divisions(database)
     teams = []
     excluded_teams = []
     for row in ranking:
@@ -116,6 +143,7 @@ def main() -> None:
             "last_tracked_at": row["last_tracked_at"],
             "days_without_tracking": row["days_without_tracking"],
             "performance": team_performance(matches, name),
+            "divisions": sorted(divisions.get(name, set())),
         }
         if row["eligible"]:
             team["position"] = len(teams) + 1
