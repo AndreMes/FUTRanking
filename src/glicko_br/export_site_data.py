@@ -124,6 +124,11 @@ def current_divisions(database) -> dict[str, set[str]]:
 
 def club_countries(database) -> dict[str, str]:
     """Marca Brasil quando há participação nacional; estrangeiros usam metadado revisável."""
+    countries = {
+        row["name"]: row["country"] for row in database.execute(
+            "SELECT name, country FROM clubs WHERE country IS NOT NULL AND country <> ''"
+        ).fetchall()
+    }
     rows = database.execute(
         """SELECT DISTINCT name FROM clubs WHERE id IN (
                SELECT home_club_id FROM matches WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
@@ -132,8 +137,10 @@ def club_countries(database) -> dict[str, str]:
                UNION SELECT away_club_id FROM fixtures WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
            )"""
     ).fetchall()
-    countries = {row["name"]: "Brasil" for row in rows}
-    countries.update(COUNTRY_OVERRIDES)
+    for row in rows:
+        countries.setdefault(row["name"], "Brasil")
+    for name, country in COUNTRY_OVERRIDES.items():
+        countries.setdefault(name, country)
     return countries
 
 
