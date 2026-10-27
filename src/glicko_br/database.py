@@ -31,7 +31,7 @@ MATCHES_TABLE = f"""CREATE TABLE matches (
 SCHEMA = f"""
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clubs (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT
 );
 CREATE TABLE IF NOT EXISTS matches {MATCHES_TABLE[MATCHES_TABLE.index('('):]}
 CREATE TABLE IF NOT EXISTS rating_snapshots (
@@ -77,6 +77,8 @@ def initialise(database: sqlite3.Connection) -> None:
     columns = {row["name"] for row in database.execute("PRAGMA table_info(clubs)")}
     if "crest_url" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN crest_url TEXT")
+    if "country" not in columns:
+        database.execute("ALTER TABLE clubs ADD COLUMN country TEXT")
     for table in ("matches", "fixtures"):
         columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("stage", "TEXT"), ("group_name", "TEXT")):
@@ -86,10 +88,12 @@ def initialise(database: sqlite3.Connection) -> None:
     database.commit()
 
 
-def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None) -> int:
+def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None) -> int:
     database.execute("INSERT OR IGNORE INTO clubs(name) VALUES (?)", (name.strip(),))
     if crest_url:
         database.execute("UPDATE clubs SET crest_url=? WHERE name=?", (crest_url, name.strip()))
+    if country:
+        database.execute("UPDATE clubs SET country=? WHERE name=?", (country, name.strip()))
     return database.execute("SELECT id FROM clubs WHERE name=?", (name.strip(),)).fetchone()[0]
 
 
@@ -99,8 +103,8 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
         raise ValueError(f"Competição fora do escopo do MVP: {competition}")
     played_at = match["played_at"]
     datetime.fromisoformat(played_at.replace("Z", "+00:00"))
-    home = _club_id(database, match["home_team"], match.get("home_crest"))
-    away = _club_id(database, match["away_team"], match.get("away_crest"))
+    home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"))
+    away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"))
     matchday = int(match["matchday"]) if match.get("matchday") else None
     neutral_site = int(bool(match.get("neutral_site")) or is_neutral_event(match["external_id"]))
     values = (played_at, competition, matchday, neutral_site, match.get("stage"), match.get("group_name"), home, away, int(match["home_goals"]), int(match["away_goals"]))
@@ -135,8 +139,8 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
     if replace:
         database.execute("DELETE FROM fixtures WHERE competition='Série A'")
     for fixture in fixtures:
-        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"))
-        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"))
+        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"))
+        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"))
         neutral_site = int(bool(fixture.get("neutral_site")) or is_neutral_event(fixture["external_id"]))
         database.execute(
             """INSERT INTO fixtures(external_id, scheduled_at, competition, status, matchday, neutral_site, stage, group_name, home_club_id, away_club_id)
