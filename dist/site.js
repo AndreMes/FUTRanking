@@ -172,6 +172,6 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
   }
   if (page === 'method') {
     method();
-    el('#content').insertAdjacentHTML('beforeend', `<h2>Elegibilidade do ranking</h2><p>O ranking principal só inclui clubes com resultado rastreado nos últimos <strong>180 dias</strong> e <strong>RD abaixo de 120</strong>. Esses limites evitam que uma força antiga, sem dados recentes, seja apresentada como força atual. Clubes fora desses critérios mantêm seu histórico, mas não recebem posição até voltarem a ter dados suficientes.</p>`);
+    el('#content').insertAdjacentHTML('beforeend', `<h2>Campo neutro</h2><p>O ajuste de mando é <strong>h = +50</strong> para o mandante e <strong>−50</strong> para o visitante. Em eventos explicitamente marcados como campo neutro, ambos usam <strong>h = 0</strong>. Como a ESPN não fornece essa marcação de modo confiável, as exceções são mantidas em uma lista auditável por ID de evento e recebem o rótulo “Campo neutro” no site.</p><h2>Elegibilidade do ranking</h2><p>O ranking principal só inclui clubes com resultado rastreado nos últimos <strong>180 dias</strong> e <strong>RD abaixo de 120</strong>. Esses limites evitam que uma força antiga, sem dados recentes, seja apresentada como força atual. Clubes fora desses critérios mantêm seu histórico, mas não recebem posição até voltarem a ter dados suficientes.</p>`);
   }
 }).catch(() => { document.body.innerHTML = shell('Dados indisponíveis'); });
