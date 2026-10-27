@@ -8,7 +8,7 @@ const club = (name, url, link = false) => {
   return link ? `<a class="club club-link" href="clube.html?time=${encodeURIComponent(name)}">${content}</a>` : `<span class="club">${content}</span>`;
 };
 const impact = value => `<span class="impact ${value >= 0 ? 'positive' : 'negative'}">${value >= 0 ? '+' : ''}${value?.toFixed(1) ?? '—'}</span>`;
-const shell = (title, kicker = 'Série A · Brasil') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav><a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="zebras.html">Zebras</a><a href="proximos-jogos.html">Próximos jogos</a><a href="simulacoes.html">Simulações</a><a href="metodo.html">Método</a></nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap">FUTRanking · Glicko-2 para o futebol brasileiro</div></footer>`;
+const shell = (title, kicker = 'Série A · Brasil') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav><a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="proximos-jogos.html">Próximos jogos</a><a href="simulacoes.html">Simulações</a><a href="metodo.html">Método</a></nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap">FUTRanking · Glicko-2 para o futebol brasileiro</div></footer>`;
 const stageName = stage => ({LAST_16: 'Oitavas de final', QUARTER_FINALS: 'Quartas de final', SEMI_FINALS: 'Semifinal', FINAL: 'Final', THIRD_PLACE: 'Disputa do 3º lugar'}[stage] || stage?.replaceAll('_', ' '));
 function matchContext(m) { const date = m.played_at || m.scheduled_at; const season = m.season || (m.competition === 'Série A' && date ? String(date).slice(0, 4) : ''); const parts = [[m.competition, season].filter(Boolean).join(' ')]; if (m.stage && m.stage !== 'REGULAR_SEASON') parts.push(stageName(m.stage)); else if (m.matchday) parts.push(`Rodada ${m.matchday}`); if (m.group_name) parts.push(m.group_name); return parts.filter(Boolean).join(' · '); }
 const contextStyle = document.createElement('style');
@@ -31,21 +31,6 @@ function game(m, fixture = false) {
   const homeMeta = fixture ? `Rating ${Math.round(m.home_rating)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${Math.round(m.away_rating)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
   return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest, true)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest, true)}<small class="rating">${awayMeta}</small></span></article>`;
-}
-
-function biggestUpsets(matches) {
-  return matches.filter(m => m.home_goals !== m.away_goals).map(m => {
-    const homeWon = m.home_goals > m.away_goals;
-    const winner = homeWon ? { name: m.home_team, crest: m.home_crest, before: m.home_rating_before, effect: m.home_rating_effect } : { name: m.away_team, crest: m.away_crest, before: m.away_rating_before, effect: m.away_rating_effect };
-    const loser = homeWon ? { name: m.away_team, crest: m.away_crest, before: m.away_rating_before, effect: m.away_rating_effect } : { name: m.home_team, crest: m.home_crest, before: m.home_rating_before, effect: m.home_rating_effect };
-    const winnerAdjusted = winner.before + (homeWon ? 50 : -50), loserAdjusted = loser.before + (homeWon ? -50 : 50);
-    return { ...m, winner, loser, upset: loserAdjusted - winnerAdjusted };
-  }).filter(m => m.upset > 0 && m.winner.effect > 0).sort((a, b) => b.winner.effect - a.winner.effect || b.upset - a.upset);
-}
-
-function upsetGame(m) {
-  const score = m.home_team === m.winner.name ? `${m.home_goals}–${m.away_goals}` : `${m.away_goals}–${m.home_goals}`;
-  return `<article class="upset-row"><span class="date">${matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="upset-team"><small>AZARÃO</small>${club(m.winner.name, m.winner.crest, true)}<b>${score}</b><span class="rating">Pré-jogo: ${Math.round(m.winner.before)} · impacto ${impact(m.winner.effect)}</span></span><span class="upset-team"><small>FAVORITO</small>${club(m.loser.name, m.loser.crest, true)}<span class="rating">Pré-jogo: ${Math.round(m.loser.before)} · impacto ${impact(m.loser.effect)}</span></span><span class="upset-gap">${Math.round(m.upset)}<small>pts. de desvantagem</small></span></article>`;
 }
 
 const searchableText = m => [m.home_team, m.away_team, m.competition, m.matchday && `rodada ${m.matchday}`, stageName(m.stage), m.group_name, m.played_at, m.scheduled_at].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -149,12 +134,6 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
     document.body.innerHTML = shell('Últimos resultados', 'Transparência');
     el('#content').innerHTML = `<p>Rating após o ciclo e impacto estimado daquele jogo. Horários em Brasília. Pesquise por clube, competição, rodada ou fase.</p><div class="list-host"></div>`;
     mountPagedList(el('.list-host'), data.matches, m => game(m), { search: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum resultado corresponde à busca.' });
-  }
-  if (page === 'zebras') {
-    const zebras = biggestUpsets(data.matches);
-    document.body.innerHTML = shell('Maiores zebras', 'Surpresas');
-    el('#content').innerHTML = `<p>Vitórias de clubes que entraram em campo com menor força estimada, ordenadas pelo maior impacto positivo no rating. O mando de campo já está incluído na comparação.</p><div class="list-host"></div>`;
-    mountPagedList(el('.list-host'), zebras, upsetGame, { search: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhuma zebra encontrada com os dados disponíveis.' });
   }
   if (page === 'fixtures') {
     document.body.innerHTML = shell('Próximos jogos', 'Agenda');
