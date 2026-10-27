@@ -8,14 +8,15 @@ from .database import connect, initialise, latest_ranking, process_pending, rebu
 from .api_football import ApiFootballError, sync_season
 from .sofascore import SofascoreError, sync_season as sync_sofascore_season
 from .football_data import FootballDataError, sync_season as sync_football_data_season
+from .espn import EspnError, sync_period as sync_espn_period
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="glicko-br")
-    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "process", "rebuild", "ranking"))
+    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "sync-espn", "process", "rebuild", "ranking"))
     parser.add_argument("--database", required=True)
     parser.add_argument("--csv")
-    parser.add_argument("--season", type=int, help="Ano de início da temporada na API-Football")
+    parser.add_argument("--season", type=int, help="Ano de início da temporada")
     parser.add_argument("--date-from", help="Data inicial inclusiva (AAAA-MM-DD)")
     parser.add_argument("--date-to", help="Data final exclusiva (AAAA-MM-DD)")
     args = parser.parse_args()
@@ -55,6 +56,14 @@ def main() -> None:
         try:
             print(f"{sync_football_data_season(database, args.season, date_from=args.date_from, date_to=args.date_to)} partidas importadas/atualizadas.")
         except FootballDataError as error:
+            parser.error(str(error))
+    elif args.command == "sync-espn":
+        if not args.season:
+            parser.error("sync-espn exige --season")
+        try:
+            print(f"{sync_espn_period(database, str(args.season))} partidas ESPN importadas/atualizadas.")
+            database.commit()
+        except EspnError as error:
             parser.error(str(error))
     elif args.command == "ranking":
         for position, row in enumerate(latest_ranking(database), 1):
