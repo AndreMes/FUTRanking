@@ -5,7 +5,7 @@ import argparse
 from datetime import date, timedelta
 from pathlib import Path
 
-from .database import connect, initialise, store_source_payload
+from .database import connect, initialise, prune_stale_fixtures, store_source_payload
 from .espn import EspnError, sync_period
 
 ESPN_BOOTSTRAP_VERSION = "espn-brazil-2016-v1"
@@ -56,6 +56,9 @@ def main() -> None:
             if args.full:
                 count = sync_period(database, str(today.year))
                 print(f'Reconciliação {today.year}: {count} resultados ESPN encontrados.')
+            removed = prune_stale_fixtures(database, before=(today - timedelta(days=1)).isoformat())
+            if removed:
+                print(f'{removed} fixtures antigos sem placar removidos.')
     marker.write_text(today.isoformat() + '\n', encoding='utf-8')
 
 
