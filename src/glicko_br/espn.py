@@ -6,16 +6,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from .competitions import ESPN_COMPETITIONS
 from .database import replace_fixtures, store_match, store_source_payload
 
 BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer"
-LEAGUES = {
-    "bra.1": "Série A",
-    "bra.2": "Série B",
-    "bra.3": "Série C",
-    "bra.4": "Série D",
-    "bra.copa_do_brazil": "Copa do Brasil",
-}
+LEAGUES = {competition.espn_slug: competition.name for competition in ESPN_COMPETITIONS}
 
 
 class EspnError(RuntimeError):
@@ -125,9 +120,9 @@ def sync_period(database, period: str, *, leagues: dict[str, str] = LEAGUES) -> 
     client = EspnClient()
     imported = 0
     for league, competition in leagues.items():
-        payload, request_path = client.get_scoreboard(league, dates=period)
-        # As partidas normalizadas ficam no banco. Guardamos apenas a auditoria
-        # compacta da consulta, não a resposta JSON integral (que é redundante).
+        response = client.get_scoreboard(league, dates=period)
+        # Aceita também o formato anterior de três campos durante a transição.
+        payload, request_path = response if len(response) == 2 else (response[0], response[-1])
         audit = json.dumps(
             {"league": league, "period": period, "event_count": len(payload["events"])},
             separators=(",", ":"),
