@@ -15,7 +15,7 @@ COMPETITIONS = COMPETITION_NAMES
 HOME_ADVANTAGE = 50.0
 GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
-RATING_MODEL_VERSION = "glicko2-home50-goal-margin-v1"
+RATING_MODEL_VERSION = "glicko2-home50-goal-margin-knockout-v2"
 MAX_INACTIVITY_DAYS = 180
 MAX_RANKING_RD = 120.0
 
@@ -181,6 +181,26 @@ def _goal_margin_weight(home_goals: int, away_goals: int) -> float:
     return min(MAX_GOAL_MARGIN_WEIGHT, 1.0 + GOAL_MARGIN_WEIGHT_COEFFICIENT * log(difference))
 
 
+KNOCKOUT_STAGE_WEIGHTS = {
+    "FIRST_ROUND": 1.05,
+    "SECOND_ROUND": 1.10,
+    "LAST_16": 1.20,
+    "ROUND_OF_16": 1.20,
+    "QUARTER_FINAL": 1.35,
+    "QUARTER_FINALS": 1.35,
+    "SEMIFINAL": 1.50,
+    "SEMI_FINAL": 1.50,
+    "SEMI_FINALS": 1.50,
+    "FINAL": 1.70,
+}
+
+
+def knockout_stage_weight(stage: str | None) -> float:
+    """Aumenta a evidência de jogos eliminatórios sem alterar pontos de liga."""
+    normalized = (stage or "").upper().replace("-", "_").replace(" ", "_")
+    return KNOCKOUT_STAGE_WEIGHTS.get(normalized, 1.0)
+
+
 def _apply_timestamp_group(
     database: sqlite3.Connection, games: list[sqlite3.Row], ratings: dict[int, Rating], last_played: dict[int, str]
 ) -> None:
@@ -194,7 +214,7 @@ def _apply_timestamp_group(
         home_offset = 0.0 if game["neutral_site"] else HOME_ADVANTAGE
         away_offset = -home_offset
         home_score = 1.0 if game["home_goals"] > game["away_goals"] else 0.5 if game["home_goals"] == game["away_goals"] else 0.0
-        weight = _goal_margin_weight(game["home_goals"], game["away_goals"])
+        weight = _goal_margin_weight(game["home_goals"], game["away_goals"]) * knockout_stage_weight(game["stage"])
         outcomes[game["home_club_id"]].append(OpponentResult(away, home_score, home_offset, weight))
         outcomes[game["away_club_id"]].append(OpponentResult(home, 1.0 - home_score, away_offset, weight))
     after = {club: update(before[club], results) for club, results in outcomes.items()}
