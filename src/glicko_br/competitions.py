@@ -22,6 +22,7 @@ ESPN_COMPETITIONS = (
     Competition("bra.4", "Série D"),
     Competition("bra.copa_do_brazil", "Copa do Brasil"),
     Competition("conmebol.libertadores", "CONMEBOL Libertadores"),
+    Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana"),
 )
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS)
