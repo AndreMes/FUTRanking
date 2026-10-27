@@ -8,8 +8,9 @@ from math import log
 from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, update
+from .competitions import COMPETITION_NAMES
 
-COMPETITIONS = {"Série A", "Série B", "Série C", "Série D", "Copa do Brasil"}
+COMPETITIONS = COMPETITION_NAMES
 HOME_ADVANTAGE = 50.0
 GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
@@ -17,18 +18,21 @@ RATING_MODEL_VERSION = "glicko2-home50-goal-margin-v1"
 MAX_INACTIVITY_DAYS = 180
 MAX_RANKING_RD = 120.0
 
-SCHEMA = """
-PRAGMA foreign_keys = ON;
-CREATE TABLE IF NOT EXISTS clubs (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT
-);
-CREATE TABLE IF NOT EXISTS matches (
+COMPETITION_CHECK = ", ".join(repr(competition) for competition in sorted(COMPETITIONS))
+MATCHES_TABLE = f"""CREATE TABLE matches (
   external_id TEXT PRIMARY KEY, played_at TEXT NOT NULL, competition TEXT NOT NULL,
   matchday INTEGER, stage TEXT, group_name TEXT,
   home_club_id INTEGER NOT NULL REFERENCES clubs(id), away_club_id INTEGER NOT NULL REFERENCES clubs(id),
   home_goals INTEGER NOT NULL CHECK(home_goals >= 0), away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
-  CHECK(home_club_id <> away_club_id), CHECK(competition IN ('Série A','Série B','Série C','Série D','Copa do Brasil'))
+  CHECK(home_club_id <> away_club_id), CHECK(competition IN ({COMPETITION_CHECK}))
+);"""
+
+SCHEMA = f"""
+PRAGMA foreign_keys = ON;
+CREATE TABLE IF NOT EXISTS clubs (
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT
 );
+CREATE TABLE IF NOT EXISTS matches {MATCHES_TABLE[MATCHES_TABLE.index('('):]}
 CREATE TABLE IF NOT EXISTS rating_snapshots (
   period_date TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
   rating REAL NOT NULL, rd REAL NOT NULL, volatility REAL NOT NULL,
@@ -148,6 +152,12 @@ def prune_stale_fixtures(database: sqlite3.Connection, *, before: str) -> int:
     """Descarta agendas antigas sem placar, que não são previsões futuras válidas."""
     cursor = database.execute("DELETE FROM fixtures WHERE scheduled_at < ?", (before,))
     return cursor.rowcount
+
+
+def recreate_matches_table(database: sqlite3.Connection) -> None:
+    """Atualiza a validação do catálogo após a limpeza atômica da carga histórica."""
+    database.execute("DROP TABLE matches")
+    database.execute(MATCHES_TABLE)
 
 
 def _advance_inactive(rating: Rating, since: str | None, until: str) -> Rating:
