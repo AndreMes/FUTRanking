@@ -76,8 +76,9 @@ def simulate_season(
     for fixture in fixtures:
         home_name, away_name = str(fixture["home_team"]), str(fixture["away_team"])
         home, away = ratings.get(home_name, Rating()), ratings.get(away_name, Rating())
-        binary_home = expected_score(home, away, HOME_ADVANTAGE)
-        gap = home.rating + HOME_ADVANTAGE - away.rating
+        home_advantage = 0.0 if fixture.get("neutral_site") else HOME_ADVANTAGE
+        binary_home = expected_score(home, away, home_advantage)
+        gap = home.rating + home_advantage - away.rating
         draw = _clamp(observed_draw_rate * exp(-abs(gap) / DRAW_GAP_SCALE), MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY)
         projected_fixtures.append((team_index[home_name], team_index[away_name], (1.0 - draw) * binary_home, draw))
 
@@ -133,4 +134,3 @@ def simulate_season(
         "draw_limits": [MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY],
         "teams": sorted(table, key=lambda row: row["position"]),
     }
-
