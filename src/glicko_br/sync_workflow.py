@@ -5,12 +5,12 @@ import argparse
 from datetime import date, timedelta
 from pathlib import Path
 
-from .competitions import COMPETITION_CATALOG_VERSION
+from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
 from .database import connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
-from .espn import EspnError, sync_period
+from .espn import EspnClient, EspnError, sync_period
 
 HISTORY_START_YEAR = 2016
-ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}"
+ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}"
 
 
 def reset_match_data(database) -> None:
@@ -32,6 +32,7 @@ def main() -> None:
         raise ValueError('A última sincronização está no futuro; verifique o banco antes de continuar.')
     database = connect(args.database)
     initialise(database)
+    client = EspnClient()
     bootstrap = not database.execute(
         "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' AND request_path=? LIMIT 1",
         (ESPN_BOOTSTRAP_VERSION,),
@@ -44,7 +45,7 @@ def main() -> None:
                 recreate_matches_table(database)
                 total = 0
                 for season in range(HISTORY_START_YEAR, today.year + 1):
-                    count = sync_period(database, str(season))
+                    count = sync_period(database, str(season), client=client)
                     total += count
                     print(f'Temporada {season}: {count} resultados ESPN encontrados.')
                 if not total:
@@ -56,10 +57,10 @@ def main() -> None:
                 start = min(today - timedelta(days=7), last_sync - timedelta(days=1)) if last_sync else today - timedelta(days=7)
                 for offset in range((today - start).days + 1):
                     checked = start + timedelta(days=offset)
-                    count = sync_period(database, checked.strftime('%Y%m%d'))
+                    count = sync_period(database, checked.strftime('%Y%m%d'), client=client)
                     print(f'{checked.isoformat()}: {count} resultados ESPN encontrados.')
                 if args.full:
-                    count = sync_period(database, str(today.year))
+                    count = sync_period(database, str(today.year), client=client)
                     print(f'Reconciliação {today.year}: {count} resultados ESPN encontrados.')
             removed = prune_stale_fixtures(database, before=(today - timedelta(days=1)).isoformat())
             if removed:
