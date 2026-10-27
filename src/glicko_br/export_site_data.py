@@ -11,6 +11,7 @@ from .glicko2 import Rating, expected_score
 from .database import HOME_ADVANTAGE
 from .simulation import simulate_season
 from .neutral_sites import is_neutral_event
+from .club_metadata import COUNTRY_OVERRIDES
 
 
 def exported_matches(database) -> list[dict[str, object]]:
@@ -121,6 +122,21 @@ def current_divisions(database) -> dict[str, set[str]]:
     return divisions
 
 
+def club_countries(database) -> dict[str, str]:
+    """Marca Brasil quando há participação nacional; estrangeiros usam metadado revisável."""
+    rows = database.execute(
+        """SELECT DISTINCT name FROM clubs WHERE id IN (
+               SELECT home_club_id FROM matches WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
+               UNION SELECT away_club_id FROM matches WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
+               UNION SELECT home_club_id FROM fixtures WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
+               UNION SELECT away_club_id FROM fixtures WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
+           )"""
+    ).fetchall()
+    countries = {row["name"]: "Brasil" for row in rows}
+    countries.update(COUNTRY_OVERRIDES)
+    return countries
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -133,6 +149,7 @@ def main() -> None:
         parser.error("O banco ainda não possui um ranking para exportar.")
     matches = exported_matches(database)
     divisions = current_divisions(database)
+    countries = club_countries(database)
     teams = []
     excluded_teams = []
     for row in ranking:
@@ -146,6 +163,7 @@ def main() -> None:
             "days_without_tracking": row["days_without_tracking"],
             "performance": team_performance(matches, name),
             "divisions": sorted(divisions.get(name, set())),
+            "country": countries.get(name, "País não informado"),
         }
         if row["eligible"]:
             team["position"] = len(teams) + 1
