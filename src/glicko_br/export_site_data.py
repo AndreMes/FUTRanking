@@ -17,8 +17,8 @@ def exported_matches(database) -> list[dict[str, object]]:
     rows = database.execute(
         """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
-                  home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
-                  away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
+                  home_effect.rating_before AS home_rating_before, home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
+                  away_effect.rating_before AS away_rating_before, away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
            FROM matches m
            JOIN clubs home ON home.id = m.home_club_id
            JOIN clubs away ON away.id = m.away_club_id
