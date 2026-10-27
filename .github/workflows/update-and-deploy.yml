@@ -3,8 +3,8 @@ name: Atualizar e publicar FUTRanking
 on:
   workflow_dispatch:
   schedule:
-    # 06:15 em São Paulo (UTC-3)
-    - cron: "15 9 * * *"
+    # 00:15 em São Paulo (UTC-3)
+    - cron: "15 3 * * *"
 
 permissions:
   contents: write
