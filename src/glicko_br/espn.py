@@ -40,7 +40,7 @@ class EspnClient:
             raise EspnError("A ESPN retornou uma resposta inválida.") from error
         if not isinstance(payload.get("events"), list):
             raise EspnError(f"A ESPN não retornou a lista de eventos para {league}.")
-        return payload, raw, request_path
+        return payload, request_path
 
 
 def _competitors(event: dict) -> tuple[dict, dict]:
@@ -125,8 +125,14 @@ def sync_period(database, period: str, *, leagues: dict[str, str] = LEAGUES) -> 
     client = EspnClient()
     imported = 0
     for league, competition in leagues.items():
-        payload, raw, request_path = client.get_scoreboard(league, dates=period)
-        store_source_payload(database, "espn", request_path, raw)
+        payload, request_path = client.get_scoreboard(league, dates=period)
+        # As partidas normalizadas ficam no banco. Guardamos apenas a auditoria
+        # compacta da consulta, não a resposta JSON integral (que é redundante).
+        audit = json.dumps(
+            {"league": league, "period": period, "event_count": len(payload["events"])},
+            separators=(",", ":"),
+        )
+        store_source_payload(database, "espn", request_path, audit)
         fixtures = []
         for event in payload["events"]:
             row = event_to_row(event, competition)
