@@ -20,6 +20,9 @@ document.head.append(chartControlsStyle);
 const simulationStyle = document.createElement('style');
 simulationStyle.textContent = '.simulation-note{max-width:760px;margin-bottom:26px}.simulation-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}.simulation-grid h2{margin-top:0}.simulation-row{grid-template-columns:40px 1fr 66px 82px}.simulation-row strong{text-align:right}.simulation-method{max-width:820px;margin-top:42px;padding:24px;border-left:4px solid #075c42;background:#e9f0e8}.simulation-method h2{margin-top:0}.simulation-method p{color:#34473f}.simulation-unavailable{padding:26px}@media(max-width:780px){.simulation-grid{grid-template-columns:1fr}.simulation-row{grid-template-columns:32px 1fr 54px 72px;font-size:.82rem}.top nav{flex-wrap:wrap;justify-content:center}}';
 document.head.append(simulationStyle);
+const rankingFilterStyle = document.createElement('style');
+rankingFilterStyle.textContent = '.ranking-filters{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 14px}.ranking-filters button{border:1px solid #d8d0c1;border-radius:999px;background:#fffdf8;color:#10231d;padding:8px 13px;font:inherit;font-size:.85rem;font-weight:800;cursor:pointer}.ranking-filters button.active{background:#075c42;border-color:#075c42;color:#fff}.ranking-summary{margin:0 0 12px;color:#5b6f68;font-size:.9rem}';
+document.head.append(rankingFilterStyle);
 const clubLinkStyle = document.createElement('style');
 clubLinkStyle.textContent = '.club-link{color:inherit;text-decoration:none}.club-link:hover,.club-link:focus-visible{color:#075c42;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}';
 document.head.append(clubLinkStyle);
@@ -128,7 +131,17 @@ function method() {
 fetch('./data/ranking.json').then(r => r.json()).then(data => {
   if (page === 'ranking') {
     document.body.innerHTML = shell('Ranking');
-    el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Inclui apenas clubes com jogos rastreados nos últimos 180 dias e RD abaixo de 120. Clique em um clube.</p><section class="panel"><div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${data.teams.map(t => `<a class="row rank" href="clube.html?time=${encodeURIComponent(t.name)}"><span>${t.position}º</span><b>${club(t.name, t.crest)}</b><strong>${Math.round(t.rating)}</strong></a>`).join('')}</section>`;
+    const filters = [['general', 'Geral'], ['Série A', 'Série A'], ['Série B', 'Série B'], ['Série C', 'Série C']];
+    el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Inclui apenas clubes com jogos rastreados nos últimos 180 dias e RD abaixo de 120. Os filtros por divisão exibem os clubes que disputam aquela Série nesta temporada; o rating continua sendo global. Clique em um clube.</p><div class="ranking-filters" role="group" aria-label="Filtrar ranking">${filters.map(([value, label], index) => `<button type="button" data-division="${value}" class="${index === 0 ? 'active' : ''}">${label}</button>`).join('')}</div><p class="ranking-summary"></p><section class="panel ranking-panel"></section>`;
+    const buttons = [...document.querySelectorAll('[data-division]')], summary = el('.ranking-summary'), panel = el('.ranking-panel');
+    const renderRanking = division => {
+      const teams = division === 'general' ? data.teams : data.teams.filter(team => (team.divisions || []).includes(division));
+      summary.textContent = division === 'general' ? `${teams.length} clubes elegíveis no ranking geral.` : `${teams.length} clubes elegíveis da ${division} nesta temporada.`;
+      panel.innerHTML = `<div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${teams.map((team, index) => `<a class="row rank" href="clube.html?time=${encodeURIComponent(team.name)}"><span>${index + 1}º</span><b>${club(team.name, team.crest)}</b><strong>${Math.round(team.rating)}</strong></a>`).join('') || '<p class="empty-list">Não há clubes elegíveis neste filtro.</p>'}`;
+      buttons.forEach(button => button.classList.toggle('active', button.dataset.division === division));
+    };
+    buttons.forEach(button => button.addEventListener('click', () => renderRanking(button.dataset.division)));
+    renderRanking('general');
   }
   if (page === 'resultados') {
     document.body.innerHTML = shell('Últimos resultados', 'Transparência');
