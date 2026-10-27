@@ -144,6 +144,12 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
 
 
+def prune_stale_fixtures(database: sqlite3.Connection, *, before: str) -> int:
+    """Descarta agendas antigas sem placar, que não são previsões futuras válidas."""
+    cursor = database.execute("DELETE FROM fixtures WHERE scheduled_at < ?", (before,))
+    return cursor.rowcount
+
+
 def _advance_inactive(rating: Rating, since: str | None, until: str) -> Rating:
     """Aplica períodos semanais vazios apenas quando o clube volta a jogar."""
     if not since:
