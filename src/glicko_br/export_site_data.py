@@ -12,6 +12,7 @@ from .database import HOME_ADVANTAGE
 from .simulation import simulate_season
 from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
+from .competitions import DOMESTIC_COMPETITION_COUNTRIES
 
 
 def exported_matches(database) -> list[dict[str, object]]:
@@ -124,22 +125,24 @@ def current_divisions(database) -> dict[str, set[str]]:
 
 
 def club_countries(database) -> dict[str, str]:
-    """Marca Brasil quando há participação nacional; estrangeiros usam metadado revisável."""
+    """Completa países a partir das ligas nacionais quando necessário."""
     countries = {
         row["name"]: row["country"] for row in database.execute(
             "SELECT name, country FROM clubs WHERE country IS NOT NULL AND country <> ''"
         ).fetchall()
     }
+    placeholders = ", ".join("?" for _ in DOMESTIC_COMPETITION_COUNTRIES)
     rows = database.execute(
-        """SELECT DISTINCT name FROM clubs WHERE id IN (
-               SELECT home_club_id FROM matches WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
-               UNION SELECT away_club_id FROM matches WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
-               UNION SELECT home_club_id FROM fixtures WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
-               UNION SELECT away_club_id FROM fixtures WHERE competition IN ('Série A', 'Série B', 'Série C', 'Série D', 'Copa do Brasil')
-           )"""
+        f"""SELECT competition, name FROM (
+               SELECT m.competition, home.name AS name FROM matches m JOIN clubs home ON home.id=m.home_club_id WHERE m.competition IN ({placeholders})
+               UNION SELECT m.competition, away.name AS name FROM matches m JOIN clubs away ON away.id=m.away_club_id WHERE m.competition IN ({placeholders})
+               UNION SELECT f.competition, home.name AS name FROM fixtures f JOIN clubs home ON home.id=f.home_club_id WHERE f.competition IN ({placeholders})
+               UNION SELECT f.competition, away.name AS name FROM fixtures f JOIN clubs away ON away.id=f.away_club_id WHERE f.competition IN ({placeholders})
+           )""",
+        tuple(DOMESTIC_COMPETITION_COUNTRIES) * 4,
     ).fetchall()
     for row in rows:
-        countries.setdefault(row["name"], "Brasil")
+        countries.setdefault(row["name"], DOMESTIC_COMPETITION_COUNTRIES[row["competition"]])
     for name, country in COUNTRY_OVERRIDES.items():
         countries.setdefault(name, country)
     return countries
