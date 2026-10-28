@@ -7,7 +7,7 @@ from datetime import date, datetime
 from math import log
 from pathlib import Path
 
-from .glicko2 import Rating, OpponentResult, update
+from .glicko2 import Rating, OpponentResult, expected_score, update
 from .competitions import COMPETITION_NAMES
 from .neutral_sites import is_neutral_event
 
@@ -15,7 +15,7 @@ COMPETITIONS = COMPETITION_NAMES
 HOME_ADVANTAGE = 50.0
 GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
-RATING_MODEL_VERSION = "glicko2-home50-goal-margin-knockout-v2"
+RATING_MODEL_VERSION = "glicko2-home50-goal-margin-knockout-backtest-v3"
 MAX_INACTIVITY_DAYS = 90
 MAX_RANKING_RD = 120.0
 
@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS match_rating_effects (
   external_id TEXT NOT NULL REFERENCES matches(external_id), club_id INTEGER NOT NULL REFERENCES clubs(id),
   rating_before REAL NOT NULL, rating_after REAL NOT NULL, rating_effect REAL NOT NULL,
   PRIMARY KEY(external_id, club_id)
+);
+CREATE TABLE IF NOT EXISTS match_forecasts (
+  external_id TEXT PRIMARY KEY REFERENCES matches(external_id),
+  home_expected REAL NOT NULL, away_expected REAL NOT NULL, home_score REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rating_states (
   club_id INTEGER PRIMARY KEY REFERENCES clubs(id), rating REAL NOT NULL, rd REAL NOT NULL,
@@ -240,11 +244,13 @@ def _apply_timestamp_group(
     club_ids = {club for game in games for club in (game["home_club_id"], game["away_club_id"])}
     before = {club: _advance_inactive(ratings.get(club, Rating()), last_played.get(club), played_at) for club in club_ids}
     outcomes: dict[int, list[OpponentResult]] = defaultdict(list)
+    forecasts = []
     for game in games:
         home, away = before[game["home_club_id"]], before[game["away_club_id"]]
         home_offset = game["home_advantage"]
         away_offset = -home_offset
         home_score = 1.0 if game["home_goals"] > game["away_goals"] else 0.5 if game["home_goals"] == game["away_goals"] else 0.0
+        forecasts.append((game["external_id"], expected_score(home, away, home_offset), expected_score(away, home, away_offset), home_score))
         weight = _goal_margin_weight(game["home_goals"], game["away_goals"]) * knockout_stage_weight(game["stage"])
         outcomes[game["home_club_id"]].append(OpponentResult(away, home_score, home_offset, weight))
         outcomes[game["away_club_id"]].append(OpponentResult(home, 1.0 - home_score, away_offset, weight))
@@ -261,6 +267,12 @@ def _apply_timestamp_group(
         """INSERT INTO match_rating_effects(external_id, club_id, rating_before, rating_after, rating_effect) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(external_id, club_id) DO UPDATE SET rating_before=excluded.rating_before, rating_after=excluded.rating_after, rating_effect=excluded.rating_effect""",
         effects,
+    )
+    database.executemany(
+        """INSERT INTO match_forecasts(external_id, home_expected, away_expected, home_score) VALUES (?, ?, ?, ?)
+           ON CONFLICT(external_id) DO UPDATE SET home_expected=excluded.home_expected,
+             away_expected=excluded.away_expected, home_score=excluded.home_score""",
+        forecasts,
     )
     database.executemany(
         """INSERT INTO rating_states(club_id, rating, rd, volatility, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -283,6 +295,7 @@ def rebuild(database: sqlite3.Connection) -> int:
     """Reconstrói todo o histórico, apenas para a carga inicial ou correção excepcional."""
     database.execute("DELETE FROM rating_snapshots")
     database.execute("DELETE FROM match_rating_effects")
+    database.execute("DELETE FROM match_forecasts")
     database.execute("DELETE FROM rating_states")
     database.execute("DELETE FROM processed_matches")
     rows = database.execute("SELECT * FROM matches ORDER BY played_at, external_id").fetchall()
