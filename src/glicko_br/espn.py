@@ -99,6 +99,12 @@ def _context(event: dict) -> tuple[str, str, str]:
     return matchday, str(season.get("slug") or ""), str(event.get("seasonType") or "")
 
 
+def _venue_country(event: dict) -> str:
+    competitions = event.get("competitions") or []
+    venue = (competitions[0].get("venue") or {}) if competitions else {}
+    return str(((venue.get("address") or {}).get("country")) or "")
+
+
 def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
     """Normaliza somente eventos com placar final confirmado pela fonte."""
     status = ((event.get("status") or {}).get("type") or {})
@@ -109,6 +115,7 @@ def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
     home_name, home_crest, home_id = _team(home)
     away_name, away_crest, away_id = _team(away)
     matchday, stage, group_name = _context(event)
+    venue_country = _venue_country(event)
     return {
         "external_id": f"espn:{event['id']}",
         "played_at": str(event["date"]),
@@ -122,6 +129,7 @@ def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
         "away_crest": away_crest,
         "home_espn_team_id": home_id,
         "away_espn_team_id": away_id,
+        "venue_country": venue_country,
         "home_goals": str(home_score),
         "away_goals": str(away_score),
     }
@@ -135,6 +143,7 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
     home_name, home_crest, home_id = _team(home)
     away_name, away_crest, away_id = _team(away)
     matchday, stage, group_name = _context(event)
+    venue_country = _venue_country(event)
     status = ((event.get("status") or {}).get("type") or {})
     return {
         "external_id": f"espn:{event['id']}",
@@ -150,6 +159,7 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
         "away_crest": away_crest,
         "home_espn_team_id": home_id,
         "away_espn_team_id": away_id,
+        "venue_country": venue_country,
     }
 
 
