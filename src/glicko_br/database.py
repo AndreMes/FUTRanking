@@ -12,17 +12,17 @@ from .competitions import COMPETITION_NAMES
 from .neutral_sites import is_neutral_event
 
 COMPETITIONS = COMPETITION_NAMES
-HOME_ADVANTAGE = 50.0
+HOME_ADVANTAGE = 80.0
 GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
-RATING_MODEL_VERSION = "glicko2-home50-goal-margin-knockout-backtest-v3"
+RATING_MODEL_VERSION = "glicko2-home80-goal-margin-knockout-v4"
 MAX_INACTIVITY_DAYS = 90
 MAX_RANKING_RD = 120.0
 
 COMPETITION_CHECK = ", ".join(repr(competition) for competition in sorted(COMPETITIONS))
 MATCHES_TABLE = f"""CREATE TABLE matches (
   external_id TEXT PRIMARY KEY, played_at TEXT NOT NULL, competition TEXT NOT NULL,
-  matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 50, venue_country TEXT, stage TEXT, group_name TEXT,
+  matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 80, venue_country TEXT, stage TEXT, group_name TEXT,
   home_club_id INTEGER NOT NULL REFERENCES clubs(id), away_club_id INTEGER NOT NULL REFERENCES clubs(id),
   home_goals INTEGER NOT NULL CHECK(home_goals >= 0), away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
   CHECK(home_club_id <> away_club_id), CHECK(competition IN ({COMPETITION_CHECK}))
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS model_evaluations (
 );
 CREATE TABLE IF NOT EXISTS fixtures (
   external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
-  status TEXT NOT NULL, matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 50, venue_country TEXT, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
+  status TEXT NOT NULL, matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 80, venue_country TEXT, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
   away_club_id INTEGER NOT NULL REFERENCES clubs(id)
 );
 CREATE TABLE IF NOT EXISTS source_payloads (
@@ -88,7 +88,7 @@ def initialise(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs ADD COLUMN country TEXT")
     for table in ("matches", "fixtures"):
         columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
-        for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 50"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
+        for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
