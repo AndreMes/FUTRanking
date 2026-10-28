@@ -16,6 +16,7 @@ class Competition:
 
 
 ESPN_COMPETITIONS = (
+    Competition("arg.1", "Liga Profissional Argentina"),
     Competition("bra.1", "Série A"),
     Competition("bra.2", "Série B"),
     Competition("bra.3", "Série C"),
