@@ -181,6 +181,57 @@ def exported_data_health(database) -> list[dict[str, object]]:
     ]
 
 
+def _backtest_summary(rows) -> dict[str, object]:
+    """Agrega previsões feitas antes do jogo em faixas de calibração."""
+    rows = list(rows)
+    bins = [{"label": f"{start}\u2013{start + 10}%", "count": 0, "predicted_total": 0.0, "observed_total": 0.0} for start in range(0, 100, 10)]
+    for row in rows:
+        expected, observed = float(row["home_expected"]), float(row["home_score"])
+        bucket = bins[min(9, int(expected * 10))]
+        bucket["count"] += 1
+        bucket["predicted_total"] += expected
+        bucket["observed_total"] += observed
+    count = len(rows)
+    summary_bins = [
+        {
+            "label": bucket["label"],
+            "count": bucket["count"],
+            "predicted": round(bucket["predicted_total"] / bucket["count"], 4),
+            "observed": round(bucket["observed_total"] / bucket["count"], 4),
+        }
+        for bucket in bins if bucket["count"]
+    ]
+    if not count:
+        return {"matches": 0, "mean_prediction": None, "mean_observed": None, "brier_score": None, "mean_absolute_error": None, "bins": []}
+    return {
+        "matches": count,
+        "mean_prediction": round(sum(float(row["home_expected"]) for row in rows) / count, 4),
+        "mean_observed": round(sum(float(row["home_score"]) for row in rows) / count, 4),
+        "brier_score": round(sum((float(row["home_expected"]) - float(row["home_score"])) ** 2 for row in rows) / count, 4),
+        "mean_absolute_error": round(sum(abs(float(row["home_expected"]) - float(row["home_score"])) for row in rows) / count, 4),
+        "bins": summary_bins,
+    }
+
+
+def exported_backtest(database) -> dict[str, object]:
+    """Mede a calibração com previsões persistidas antes de cada resultado."""
+    rows = database.execute(
+        """SELECT m.competition, forecast.home_expected, forecast.home_score
+           FROM match_forecasts forecast JOIN matches m ON m.external_id=forecast.external_id
+           ORDER BY m.played_at"""
+    ).fetchall()
+    by_competition: dict[str, list] = {}
+    for row in rows:
+        by_competition.setdefault(row["competition"], []).append(row)
+    return {
+        "overall": _backtest_summary(rows),
+        "competitions": [
+            {"competition": competition, **_backtest_summary(competition_rows)}
+            for competition, competition_rows in sorted(by_competition.items())
+        ],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -228,6 +279,7 @@ def main() -> None:
         "matches": matches,
         "fixtures": fixtures,
         "data_health": exported_data_health(database),
+        "backtest": exported_backtest(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
