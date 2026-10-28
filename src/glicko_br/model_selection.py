@@ -19,8 +19,8 @@ from .database import (
 from .glicko2 import OpponentResult, Rating, expected_score, update
 
 # A grade é custosa e deve ser refeita só uma vez por mês, não em cada cron diário.
-EVALUATION_VERSION = f"rolling-home-grid-v2|{COMPETITION_CATALOG_VERSION}|{date.today():%Y-%m}"
-HOME_ADVANTAGES = (50.0, 55.0, 60.0, 65.0, 70.0)
+EVALUATION_VERSION = f"rolling-home-grid-v3|{COMPETITION_CATALOG_VERSION}|{date.today():%Y-%m}"
+HOME_ADVANTAGES = (65.0, 70.0, 75.0, 80.0)
 # A primeira rodada não distinguiu o peso da margem; nesta rodada ele é fixado
 # no valor publicado, para isolar o efeito do mando de campo.
 GOAL_MARGIN_COEFFICIENTS = (GOAL_MARGIN_WEIGHT_COEFFICIENT,)
