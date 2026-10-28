@@ -46,6 +46,44 @@ def _standing_rows(matches: Iterable[dict[str, object]]) -> dict[str, dict[str, 
     return standings
 
 
+def _simulated_outcome(home_win: float, draw: float, random: Random) -> int:
+    """Retorna 1 para vitória do mandante, 0 para empate e -1 para derrota."""
+    outcome = random.random()
+    if outcome < home_win:
+        return 1
+    if outcome < home_win + draw:
+        return 0
+    return -1
+
+
+def _playoff_winner(
+    higher_seed: int,
+    lower_seed: int,
+    teams: list[str],
+    ratings: dict[str, Rating],
+    observed_draw_rate: float,
+    random: Random,
+) -> int:
+    """Simula ida e volta; empate agregado dá a vaga ao clube melhor classificado.
+
+    O regulamento da Série B 2026 define os playoffs de acesso entre 3º–6º
+    desta forma. Uma vitória projetada vale uma margem de um gol: a margem não
+    serve para atualizar rating, apenas para resolver o agregado do confronto.
+    """
+    aggregate_for_higher = 0
+    for home_index, away_index in ((lower_seed, higher_seed), (higher_seed, lower_seed)):
+        home, away = ratings.get(teams[home_index], Rating()), ratings.get(teams[away_index], Rating())
+        home_win = expected_score(home, away, HOME_ADVANTAGE)
+        gap = home.rating + HOME_ADVANTAGE - away.rating
+        draw = _clamp(observed_draw_rate * exp(-abs(gap) / DRAW_GAP_SCALE), MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY)
+        result = _simulated_outcome((1.0 - draw) * home_win, draw, random)
+        if home_index == higher_seed:
+            aggregate_for_higher += result
+        else:
+            aggregate_for_higher -= result
+    return higher_seed if aggregate_for_higher >= 0 else lower_seed
+
+
 def simulate_season(
     completed_matches: list[dict[str, object]],
     fixtures: list[dict[str, object]],
@@ -53,6 +91,7 @@ def simulate_season(
     scenarios: int = SCENARIOS,
     seed: int = 2026,
     promotion_slots: int = 0,
+    playoff_promotion_slots: int = 0,
     relegation_slots: int = 4,
 ) -> dict[str, object]:
     """Retorna probabilidades de título, acesso e rebaixamento de uma liga em andamento.
@@ -74,6 +113,11 @@ def simulate_season(
     base_goal_difference = [standings[team]["goals_for"] - standings[team]["goals_against"] for team in teams]
     observed_draw_rate = sum(int(match["home_goals"]) == int(match["away_goals"]) for match in completed_matches) / len(completed_matches)
 
+    if playoff_promotion_slots not in (0, 2):
+        raise ValueError("O formato de playoff atualmente suporta duas vagas em duas semifinais.")
+    if playoff_promotion_slots > promotion_slots:
+        raise ValueError("As vagas de playoff não podem exceder as vagas de acesso.")
+
     projected_fixtures: list[tuple[int, int, float, float]] = []
     for fixture in fixtures:
         home_name, away_name = str(fixture["home_team"]), str(fixture["away_team"])
@@ -92,14 +136,14 @@ def simulate_season(
         points, wins = base_points.copy(), base_wins.copy()
         goals_for, goal_difference = base_goals_for.copy(), base_goal_difference.copy()
         for home, away, home_win, draw in projected_fixtures:
-            outcome = random.random()
-            if outcome < home_win:
+            result = _simulated_outcome(home_win, draw, random)
+            if result == 1:
                 points[home] += 3
                 wins[home] += 1
                 goals_for[home] += 1
                 goal_difference[home] += 1
                 goal_difference[away] -= 1
-            elif outcome < home_win + draw:
+            elif result == 0:
                 points[home] += 1
                 points[away] += 1
                 goals_for[home] += 1
@@ -112,8 +156,12 @@ def simulate_season(
                 goal_difference[home] -= 1
         ordered = sorted(range(len(teams)), key=lambda i: (-points[i], -wins[i], -goal_difference[i], -goals_for[i], teams[i]))
         champion_counts[ordered[0]] += 1
-        for index in ordered[:promotion_slots]:
+        direct_promotion_slots = promotion_slots - playoff_promotion_slots
+        for index in ordered[:direct_promotion_slots]:
             promotion_counts[index] += 1
+        if playoff_promotion_slots:
+            for higher_seed, lower_seed in ((ordered[2], ordered[5]), (ordered[3], ordered[4])):
+                promotion_counts[_playoff_winner(higher_seed, lower_seed, teams, ratings, observed_draw_rate, random)] += 1
         for index in ordered[-relegation_slots:]:
             relegation_counts[index] += 1
 
@@ -139,6 +187,7 @@ def simulate_season(
         "observed_draw_rate": observed_draw_rate,
         "draw_limits": [MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY],
         "promotion_slots": promotion_slots,
+        "playoff_promotion_slots": playoff_promotion_slots,
         "relegation_slots": relegation_slots,
         "teams": sorted(table, key=lambda row: row["position"]),
     }
