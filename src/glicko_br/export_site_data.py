@@ -288,8 +288,6 @@ def main() -> None:
         "matches": matches,
         "fixtures": fixtures,
         "data_health": exported_data_health(database),
-        "backtest": exported_backtest(database),
-        "model_selection": exported_model_selection(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
