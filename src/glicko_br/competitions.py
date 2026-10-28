@@ -29,5 +29,5 @@ COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITI
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}" for competition in ESPN_COMPETITIONS
 )
-DATA_ENRICHMENT_VERSION = "club-country-v1"
+DATA_ENRICHMENT_VERSION = "club-country-venue-v2"
 
