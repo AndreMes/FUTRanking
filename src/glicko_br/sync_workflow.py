@@ -15,7 +15,7 @@ ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSIO
 
 def reset_match_data(database) -> None:
     """Remove a carga anterior dentro da transação de migração ESPN."""
-    for table in ("match_rating_effects", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "clubs", "rating_model"):
+    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "clubs", "rating_model"):
         database.execute(f"DELETE FROM {table}")
 
 
