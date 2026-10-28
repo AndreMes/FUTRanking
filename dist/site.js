@@ -146,8 +146,8 @@ function mountRatingChart(host, matches, team) {
 const percentage = value => `${(value * 100).toFixed(2)}%`;
 const ratingConfidence = rd => {
   if (!Number.isFinite(rd)) return { label: 'Confiança indisponível', tone: 'limited', description: 'Ainda não há informação suficiente para qualificar a incerteza deste rating.' };
-  if (rd <= 50) return { label: 'Alta confiança', tone: 'high', description: 'O rating está bem sustentado pelos jogos rastreados; pequenas oscilações são esperadas.' };
-  if (rd <= 85) return { label: 'Confiança moderada', tone: 'medium', description: 'A estimativa é útil, mas ainda pode variar de forma relevante com os próximos jogos.' };
+  if (rd <= 75) return { label: 'Alta confiança', tone: 'high', description: 'Para os dados disponíveis, o rating está bem sustentado pelos jogos rastreados; pequenas oscilações são esperadas.' };
+  if (rd <= 100) return { label: 'Confiança moderada', tone: 'medium', description: 'A estimativa é útil, mas ainda pode variar de forma relevante com os próximos jogos.' };
   return { label: 'Confiança limitada', tone: 'limited', description: 'Há maior incerteza por poucos dados recentes ou por um intervalo sem partidas rastreadas.' };
 };
 
