@@ -58,6 +58,9 @@ CREATE TABLE IF NOT EXISTS processed_matches (
 CREATE TABLE IF NOT EXISTS rating_model (
   singleton INTEGER PRIMARY KEY CHECK(singleton = 1), version TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS model_evaluations (
+  version TEXT PRIMARY KEY, evaluated_at TEXT NOT NULL, payload TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS fixtures (
   external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
   status TEXT NOT NULL, matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 50, venue_country TEXT, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
