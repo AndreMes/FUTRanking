@@ -78,26 +78,32 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
 
 
 def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) -> dict[str, object]:
-    """Prepara a projeção exclusiva da temporada em andamento da Série A."""
+    """Prepara projeções independentes para as Séries A e B em andamento."""
     season = datetime.now(timezone.utc).year
-    serie_a_fixtures = [
-        fixture for fixture in fixtures
-        if fixture["competition"] == "Série A" and str(fixture["scheduled_at"])[:4] == str(season)
-    ]
-    matches = [dict(row) for row in database.execute(
-        """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
-           FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
-           WHERE m.competition='Série A' AND m.played_at >= ? AND m.played_at < ?""",
-        (f"{season}-01-01", f"{season + 1}-01-01"),
-    ).fetchall()]
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
-    simulation = simulate_season(matches, serie_a_fixtures, ratings, seed=season)
-    simulation["season"] = season
-    if simulation["available"]:
-        crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
-        for team in simulation["teams"]:
-            team["crest"] = crests.get(team["name"])
-    return simulation
+    crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
+    simulations = []
+    for competition, promotion_slots in (("Série A", 0), ("Série B", 4)):
+        competition_fixtures = [
+            fixture for fixture in fixtures
+            if fixture["competition"] == competition and str(fixture["scheduled_at"])[:4] == str(season)
+        ]
+        matches = [dict(row) for row in database.execute(
+            """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
+               FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
+               WHERE m.competition=? AND m.played_at >= ? AND m.played_at < ?""",
+            (competition, f"{season}-01-01", f"{season + 1}-01-01"),
+        ).fetchall()]
+        simulation = (
+            simulate_season(matches, competition_fixtures, ratings, seed=season, promotion_slots=promotion_slots)
+            if competition_fixtures else {"available": False}
+        )
+        simulation.update({"competition": competition, "season": season})
+        if simulation["available"]:
+            for team in simulation["teams"]:
+                team["crest"] = crests.get(team["name"])
+        simulations.append(simulation)
+    return {"available": any(simulation["available"] for simulation in simulations), "season": season, "competitions": simulations}
 
 
 def current_divisions(database) -> dict[str, set[str]]:
