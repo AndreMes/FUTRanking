@@ -17,6 +17,9 @@ document.head.append(contextStyle);
 const chartControlsStyle = document.createElement('style');
 chartControlsStyle.textContent = '.chart-controls{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:18px 0}.chart-presets{display:flex;gap:6px;flex-wrap:wrap}.chart-presets button{border:1px solid #d8d0c1;border-radius:99px;background:#fffdf8;color:#10231d;padding:7px 10px;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}.chart-presets button.active{background:#075c42;border-color:#075c42;color:#fff}.chart-date{display:grid;gap:4px;color:#5b6f68;font-size:.72rem;font-weight:750}.chart-date input{border:1px solid #d8d0c1;border-radius:7px;background:#fffdf8;color:#10231d;padding:7px;font:inherit}';
 document.head.append(chartControlsStyle);
+const chartDynamicStyle = document.createElement('style');
+chartDynamicStyle.textContent = '.chart-canvas{position:relative}.rating-chart{touch-action:pan-y;cursor:crosshair}.rating-chart .area{fill:url(#rating-area);opacity:.32}.rating-chart .crosshair{stroke:#6d7e77;stroke-width:1;stroke-dasharray:4 4;pointer-events:none}.rating-chart .focus{fill:#fffdf8;stroke:#075c42;stroke-width:3;pointer-events:none}.rating-chart .hitbox{fill:transparent}.chart-tooltip{position:absolute;z-index:2;min-width:155px;max-width:220px;pointer-events:none;border:1px solid #d8d0c1;border-radius:10px;background:#10231d;color:#fffdf8;box-shadow:0 10px 24px rgba(16,35,29,.18);padding:10px 12px;font-size:.8rem;line-height:1.35;transform:translate(-50%,calc(-100% - 12px));transition:opacity .12s ease}.chart-tooltip[hidden]{display:none}.chart-tooltip strong{display:block;margin-top:2px;font-size:1rem}.chart-tooltip::after{content:"";position:absolute;left:50%;bottom:-6px;width:10px;height:10px;background:#10231d;transform:translateX(-50%) rotate(45deg)}.chart-tip-date{color:#cfdbd5;font-size:.74rem}';
+document.head.append(chartDynamicStyle);
 const simulationStyle = document.createElement('style');
 simulationStyle.textContent = '.simulation-note{max-width:760px;margin-bottom:26px}.simulation-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}.simulation-grid h2{margin-top:0}.simulation-row{grid-template-columns:40px 1fr 66px 82px}.simulation-row strong{text-align:right}.simulation-method{max-width:820px;margin-top:42px;padding:24px;border-left:4px solid #075c42;background:#e9f0e8}.simulation-method h2{margin-top:0}.simulation-method p{color:#34473f}.simulation-unavailable{padding:26px}@media(max-width:780px){.simulation-grid{grid-template-columns:1fr}.simulation-row{grid-template-columns:32px 1fr 54px 72px;font-size:.82rem}.top nav{flex-wrap:wrap;justify-content:center}}';
 document.head.append(simulationStyle);
@@ -79,14 +82,16 @@ function ratingChartSvg(history, team) {
   const x = value => padding.left + (maxDate === minDate ? (width - padding.left - padding.right) / 2 : (value - minDate) / (maxDate - minDate) * (width - padding.left - padding.right));
   const y = value => padding.top + (high - value) / (high - low) * (height - padding.top - padding.bottom);
   const line = history.map(point => `${x(new Date(point.at).getTime()).toFixed(1)},${y(point.rating).toFixed(1)}`).join(' ');
+  const baseline = height - padding.bottom;
+  const area = `${padding.left},${baseline} ${line} ${width - padding.right},${baseline}`;
   const tickValues = [0, 0.5, 1].map(fraction => low + (high - low) * fraction);
   const dateLabel = value => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short', year: '2-digit' }).format(new Date(value));
-  const dateTicks = [minDate, minDate + (maxDate - minDate) / 2, maxDate];
+  const dateTicks = [0, .25, .5, .75, 1].map(fraction => minDate + (maxDate - minDate) * fraction);
   const grid = tickValues.map(value => `<line class="grid" x1="${padding.left}" x2="${width - padding.right}" y1="${y(value)}" y2="${y(value)}"/><text class="axis-label" x="${padding.left - 8}" y="${y(value) + 4}" text-anchor="end">${value.toFixed(0)}</text>`).join('');
   const xLabels = dateTicks.map(value => `<text class="axis-label" x="${x(value)}" y="${height - 14}" text-anchor="middle">${dateLabel(value)}</text>`).join('');
-  const points = history.map(point => `<circle class="point" cx="${x(new Date(point.at).getTime())}" cy="${y(point.rating)}" r="3.5"><title>${time(point.at)} · rating ${point.rating.toFixed(1)}</title></circle>`).join('');
+  const points = history.map(point => `<circle class="point" cx="${x(new Date(point.at).getTime())}" cy="${y(point.rating)}" r="3.5"/>`).join('');
   const change = history.at(-1).rating - history[0].rating;
-  return `<svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória do rating de ${team}">${grid}<polyline class="line" points="${line}"/>${points}${xLabels}</svg><div class="chart-summary"><span>Primeiro ponto: <strong>${history[0].rating.toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div>`;
+  return `<svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória interativa do rating de ${team}"><defs><linearGradient id="rating-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#159b78"/><stop offset="1" stop-color="#159b78" stop-opacity="0"/></linearGradient></defs>${grid}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${points}<line class="crosshair" hidden/><circle class="focus" r="6" hidden/><rect class="hitbox" x="${padding.left}" y="${padding.top}" width="${width - padding.left - padding.right}" height="${height - padding.top - padding.bottom}"/>${xLabels}</svg><div class="chart-tooltip" hidden></div><div class="chart-summary"><span>Primeiro ponto: <strong>${history[0].rating.toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div>`;
 }
 
 function mountRatingChart(host, matches, team) {
@@ -96,9 +101,34 @@ function mountRatingChart(host, matches, team) {
   const first = new Date(history[0].at).getTime(), last = new Date(history.at(-1).at).getTime();
   host.innerHTML = `<section class="chart-card"><h2>Trajetória do rating</h2><p>Cada ponto representa o rating após uma partida rastreada. Ajuste o período para mudar o eixo X; passe o cursor ou toque em um ponto para ver data, horário e valor.</p><div class="chart-controls"><div class="chart-presets" aria-label="Período do gráfico"><button type="button" data-months="all" class="active">Tudo</button><button type="button" data-months="24">24 meses</button><button type="button" data-months="12">12 meses</button><button type="button" data-months="6">6 meses</button><button type="button" data-months="3">3 meses</button></div><label class="chart-date">De<input type="date" data-range="start" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(first)}"></label><label class="chart-date">Até<input type="date" data-range="end" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(last)}"></label></div><div class="chart-canvas"></div></section>`;
   const canvas = host.querySelector('.chart-canvas'), startInput = host.querySelector('[data-range="start"]'), endInput = host.querySelector('[data-range="end"]'), buttons = [...host.querySelectorAll('[data-months]')];
+  const bindInteraction = visible => {
+    const svg = canvas.querySelector('.rating-chart');
+    if (!svg || !visible.length) return;
+    const tooltip = canvas.querySelector('.chart-tooltip'), crosshair = svg.querySelector('.crosshair'), focus = svg.querySelector('.focus');
+    const width = 800, height = 260, padding = { top: 20, right: 24, bottom: 42, left: 52 };
+    const dates = visible.map(point => new Date(point.at).getTime()), ratings = visible.map(point => point.rating);
+    const minDate = Math.min(...dates), maxDate = Math.max(...dates), minRating = Math.min(...ratings), maxRating = Math.max(...ratings);
+    const ratingPad = Math.max(12, (maxRating - minRating) * 0.15), low = minRating - ratingPad, high = maxRating + ratingPad;
+    const x = value => padding.left + (maxDate === minDate ? (width - padding.left - padding.right) / 2 : (value - minDate) / (maxDate - minDate) * (width - padding.left - padding.right));
+    const y = value => padding.top + (high - value) / (high - low) * (height - padding.top - padding.bottom);
+    const show = event => {
+      const rect = svg.getBoundingClientRect(), chartX = (event.clientX - rect.left) / rect.width * width;
+      let index = 0, distance = Infinity;
+      visible.forEach((point, candidate) => { const nextDistance = Math.abs(x(new Date(point.at).getTime()) - chartX); if (nextDistance < distance) { index = candidate; distance = nextDistance; } });
+      const point = visible[index], pointX = x(new Date(point.at).getTime()), pointY = y(point.rating);
+      crosshair.setAttribute('x1', pointX); crosshair.setAttribute('x2', pointX); crosshair.setAttribute('y1', padding.top); crosshair.setAttribute('y2', height - padding.bottom); crosshair.hidden = false;
+      focus.setAttribute('cx', pointX); focus.setAttribute('cy', pointY); focus.hidden = false;
+      tooltip.innerHTML = `<span class="chart-tip-date">${time(point.at)}</span><strong>Rating ${Math.round(point.rating)}</strong>`;
+      tooltip.style.left = `${pointX / width * 100}%`; tooltip.style.top = `${pointY / height * 100}%`; tooltip.hidden = false;
+    };
+    const hide = event => { if (event.pointerType !== 'touch') { tooltip.hidden = true; crosshair.hidden = true; focus.hidden = true; } };
+    svg.addEventListener('pointermove', show); svg.addEventListener('pointerdown', show); svg.addEventListener('pointerleave', hide);
+  };
   const render = () => {
     const start = new Date(`${startInput.value}T00:00:00-03:00`).getTime(), end = new Date(`${endInput.value}T23:59:59-03:00`).getTime();
-    canvas.innerHTML = start <= end ? ratingChartSvg(history.filter(point => { const at = new Date(point.at).getTime(); return at >= start && at <= end; }), team) : '<p class="empty-list">A data inicial deve ser anterior à data final.</p>';
+    const visible = history.filter(point => { const at = new Date(point.at).getTime(); return at >= start && at <= end; });
+    canvas.innerHTML = start <= end ? ratingChartSvg(visible, team) : '<p class="empty-list">A data inicial deve ser anterior à data final.</p>';
+    if (start <= end) bindInteraction(visible);
   };
   const setPeriod = months => {
     let start = first;
