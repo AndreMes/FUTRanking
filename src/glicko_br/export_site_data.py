@@ -84,16 +84,22 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
     crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
     simulations = []
     for competition, promotion_slots in (("Série A", 0), ("Série B", 4)):
-        competition_fixtures = [
-            fixture for fixture in fixtures
-            if fixture["competition"] == competition and str(fixture["scheduled_at"])[:4] == str(season)
-        ]
         matches = [dict(row) for row in database.execute(
             """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
                FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
                WHERE m.competition=? AND m.played_at >= ? AND m.played_at < ?""",
             (competition, f"{season}-01-01", f"{season + 1}-01-01"),
         ).fetchall()]
+        # A agenda da ESPN pode anunciar uma fase futura como "TBD Home" x
+        # "TBD Away". Ela não representa um 21º/22º clube e não pode entrar
+        # numa simulação de pontos corridos antes que os participantes existam.
+        competition_fixtures = [
+            fixture for fixture in fixtures
+            if fixture["competition"] == competition
+            and str(fixture["scheduled_at"])[:4] == str(season)
+            and not str(fixture["home_team"]).strip().lower().startswith("tbd")
+            and not str(fixture["away_team"]).strip().lower().startswith("tbd")
+        ]
         simulation = (
             simulate_season(matches, competition_fixtures, ratings, seed=season, promotion_slots=promotion_slots)
             if competition_fixtures else {
