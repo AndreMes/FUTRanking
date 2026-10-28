@@ -13,6 +13,7 @@ from .simulation import simulate_season
 from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
 from .competitions import DOMESTIC_COMPETITION_COUNTRIES
+from .model_selection import EVALUATION_VERSION
 
 
 def exported_matches(database) -> list[dict[str, object]]:
@@ -232,6 +233,14 @@ def exported_backtest(database) -> dict[str, object]:
     }
 
 
+def exported_model_selection(database) -> dict[str, object] | None:
+    """Entrega o último experimento temporal já calculado pelo workflow."""
+    row = database.execute(
+        "SELECT payload FROM model_evaluations WHERE version=?", (EVALUATION_VERSION,)
+    ).fetchone()
+    return json.loads(row["payload"]) if row else None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -280,6 +289,7 @@ def main() -> None:
         "fixtures": fixtures,
         "data_health": exported_data_health(database),
         "backtest": exported_backtest(database),
+        "model_selection": exported_model_selection(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
