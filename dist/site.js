@@ -143,6 +143,12 @@ function mountRatingChart(host, matches, team) {
 }
 
 const percentage = value => `${(value * 100).toFixed(2)}%`;
+const ratingConfidence = rd => {
+  if (!Number.isFinite(rd)) return { label: 'Confiança indisponível', tone: 'limited', description: 'Ainda não há informação suficiente para qualificar a incerteza deste rating.' };
+  if (rd <= 50) return { label: 'Alta confiança', tone: 'high', description: 'O rating está bem sustentado pelos jogos rastreados; pequenas oscilações são esperadas.' };
+  if (rd <= 85) return { label: 'Confiança moderada', tone: 'medium', description: 'A estimativa é útil, mas ainda pode variar de forma relevante com os próximos jogos.' };
+  return { label: 'Confiança limitada', tone: 'limited', description: 'Há maior incerteza por poucos dados recentes ou por um intervalo sem partidas rastreadas.' };
+};
 
 function simulationTable(teams, field, title, detail, orderByPoints = false) {
   const rows = teams.filter(team => Number((team[field] * 100).toFixed(2)) > 0).sort((a, b) => orderByPoints ? b.points - a.points || a.position - b.position : b[field] - a[field] || a.position - b.position);
@@ -228,8 +234,9 @@ fetch('./data/ranking.json').then(r => r.json()).then(data => {
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
     const matches = data.matches.filter(m => m.home_team === name || m.away_team === name), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
-    const profileMeta = [team.country, ...(team.divisions || [])].filter(Boolean).join(' · ');
-    el('#content').innerHTML = `<a class="back" href="ranking.html">← Voltar ao ranking</a><p class="club-meta"><strong>${profileMeta || 'País não informado'}</strong></p><div class="stats"><div class="stat"><b>${team.position ? `${team.position}º` : '—'}</b><span>${team.position ? 'posição' : 'fora do ranking'}</span></div><div class="stat"><b>${team.rating.toFixed(1)}</b><span>rating</span></div><div class="stat"><b>${p.games}</b><span>jogos</span></div><div class="stat"><b>${p.wins}-${p.draws}-${p.losses}</b><span>V-E-D</span></div><div class="stat"><b>${p.goals_for}:${p.goals_against}</b><span>gols</span></div><div class="stat"><b>${p.points}</b><span>pontos</span></div></div><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
+    const confidence = ratingConfidence(Number(team.rd));
+    const locationTags = [team.country || 'País não informado', ...(team.divisions || [])].filter(Boolean).map(value => `<span>${value}</span>`).join('');
+    el('#content').innerHTML = `<a class="back club-return" href="ranking.html">← Voltar ao ranking</a><section class="club-overview"><div class="club-context"><span class="club-context-label">Identidade do clube</span><div class="club-tags">${locationTags}</div></div><div class="club-primary-grid"><article class="club-key-stat"><span>Posição</span><strong>${team.position ? `${team.position}º` : '—'}</strong><small>${team.position ? 'ranking geral atual' : 'fora do ranking atual'}</small></article><article class="club-key-stat rating-key"><span>Rating Glicko-2</span><strong>${Math.round(team.rating)}</strong><small>força estimada</small></article><article class="club-confidence"><div><span>Desvio de rating (RD)</span><strong>${Number(team.rd).toFixed(1)}</strong></div><span class="confidence-badge ${confidence.tone}">${confidence.label}</span><p>${confidence.description} Quanto menor o RD, maior a confiança do modelo.</p></article></div><div class="club-secondary-grid"><article><strong>${p.games}</strong><span>jogos rastreados</span></article><article><strong>${p.wins} · ${p.draws} · ${p.losses}</strong><span>vitórias · empates · derrotas</span></article><article><strong>${p.goals_for}:${p.goals_against}</strong><span>gols pró : contra</span></article></div></section><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
     mountRatingChart(el('.chart-host'), matches, name);
     mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
     mountPagedList(el('.results-host'), matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
