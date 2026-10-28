@@ -1,5 +1,6 @@
 from glicko_br.database import HOME_ADVANTAGE, _goal_margin_weight, connect, initialise, latest_ranking, process_pending, rebuild, replace_fixtures, store_match
 from glicko_br.glicko2 import Rating, expected_score, update, OpponentResult
+from glicko_br.model_selection import evaluate
 
 
 def test_home_advantage_changes_only_expectation():
@@ -81,3 +82,19 @@ def test_processes_only_new_matches_in_timestamp_order():
     first = [(row["name"], row["rating"]) for row in latest_ranking(database)]
     assert process_pending(database) == 0
     assert first == [(row["name"], row["rating"]) for row in latest_ranking(database)]
+
+
+def test_model_selection_uses_temporal_holdout_and_caches_result():
+    database = connect(":memory:")
+    initialise(database)
+    for index, score in enumerate(((1, 0), (0, 1), (2, 1), (1, 1)), start=1):
+        store_match(database, {
+            "external_id": f"evaluation-{index}", "played_at": f"2025-0{index}-01T20:00:00Z",
+            "competition": "Série A", "home_team": "Azul", "away_team": "Verde",
+            "home_goals": str(score[0]), "away_goals": str(score[1]),
+        })
+    first = evaluate(database)
+    second = evaluate(database)
+    assert len(first["variants"]) == 9
+    assert first["test_matches"] > 0
+    assert first == second
