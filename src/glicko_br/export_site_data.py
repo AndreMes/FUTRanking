@@ -145,6 +145,39 @@ def club_countries(database) -> dict[str, str]:
     return countries
 
 
+def exported_data_health(database) -> list[dict[str, object]]:
+    """Resume a cobertura efetivamente persistida, por competição.
+
+    A página não infere disponibilidade da fonte: ela apresenta somente o que
+    já foi importado para o banco usado no ranking publicado.
+    """
+    matches = {
+        row["competition"]: dict(row)
+        for row in database.execute(
+            """SELECT competition, COUNT(*) AS finished_matches,
+                      MIN(played_at) AS first_match_at, MAX(played_at) AS last_match_at
+               FROM matches GROUP BY competition"""
+        ).fetchall()
+    }
+    fixtures = {
+        row["competition"]: int(row["pending_fixtures"])
+        for row in database.execute(
+            "SELECT competition, COUNT(*) AS pending_fixtures FROM fixtures GROUP BY competition"
+        ).fetchall()
+    }
+    names = sorted(set(matches) | set(fixtures), key=lambda value: value.lower())
+    return [
+        {
+            "competition": name,
+            "finished_matches": int(matches.get(name, {}).get("finished_matches", 0)),
+            "first_match_at": matches.get(name, {}).get("first_match_at"),
+            "last_match_at": matches.get(name, {}).get("last_match_at"),
+            "pending_fixtures": fixtures.get(name, 0),
+        }
+        for name in names
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
@@ -191,6 +224,7 @@ def main() -> None:
         "excluded_teams": excluded_teams,
         "matches": matches,
         "fixtures": fixtures,
+        "data_health": exported_data_health(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
