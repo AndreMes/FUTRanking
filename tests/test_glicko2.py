@@ -5,7 +5,7 @@ from glicko_br.model_selection import evaluate
 
 def test_home_advantage_changes_only_expectation():
     equal = Rating()
-    assert HOME_ADVANTAGE == 50
+    assert HOME_ADVANTAGE == 80
     assert expected_score(equal, equal, 50) > 0.5
     assert expected_score(equal, equal, -50) < 0.5
 
