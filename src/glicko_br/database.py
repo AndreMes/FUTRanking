@@ -22,7 +22,7 @@ MAX_RANKING_RD = 120.0
 COMPETITION_CHECK = ", ".join(repr(competition) for competition in sorted(COMPETITIONS))
 MATCHES_TABLE = f"""CREATE TABLE matches (
   external_id TEXT PRIMARY KEY, played_at TEXT NOT NULL, competition TEXT NOT NULL,
-  matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, stage TEXT, group_name TEXT,
+  matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 50, venue_country TEXT, stage TEXT, group_name TEXT,
   home_club_id INTEGER NOT NULL REFERENCES clubs(id), away_club_id INTEGER NOT NULL REFERENCES clubs(id),
   home_goals INTEGER NOT NULL CHECK(home_goals >= 0), away_goals INTEGER NOT NULL CHECK(away_goals >= 0),
   CHECK(home_club_id <> away_club_id), CHECK(competition IN ({COMPETITION_CHECK}))
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS rating_model (
 );
 CREATE TABLE IF NOT EXISTS fixtures (
   external_id TEXT PRIMARY KEY, scheduled_at TEXT NOT NULL, competition TEXT NOT NULL,
-  status TEXT NOT NULL, matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
+  status TEXT NOT NULL, matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 50, venue_country TEXT, stage TEXT, group_name TEXT, home_club_id INTEGER NOT NULL REFERENCES clubs(id),
   away_club_id INTEGER NOT NULL REFERENCES clubs(id)
 );
 CREATE TABLE IF NOT EXISTS source_payloads (
@@ -81,7 +81,7 @@ def initialise(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs ADD COLUMN country TEXT")
     for table in ("matches", "fixtures"):
         columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
-        for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("stage", "TEXT"), ("group_name", "TEXT")):
+        for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 50"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
@@ -97,6 +97,31 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
     return database.execute("SELECT id FROM clubs WHERE name=?", (name.strip(),)).fetchone()[0]
 
 
+COUNTRY_KEYS = {
+    "argentina": "AR", "bolivia": "BO", "bolívia": "BO", "brasil": "BR", "brazil": "BR",
+    "chile": "CL", "colombia": "CO", "colômbia": "CO", "ecuador": "EC", "equador": "EC",
+    "paraguay": "PY", "paraguai": "PY", "peru": "PE", "perú": "PE", "uruguay": "UY",
+    "uruguai": "UY", "venezuela": "VE",
+}
+
+
+def _country_key(country: str | None) -> str | None:
+    return COUNTRY_KEYS.get((country or "").strip().lower())
+
+
+def _home_advantage(match: dict[str, str]) -> float:
+    if bool(match.get("neutral_site")) or is_neutral_event(match["external_id"]):
+        return 0.0
+    venue, home, away = (_country_key(match.get(key)) for key in ("venue_country", "home_country", "away_country"))
+    if venue and home and away:
+        if venue == home:
+            return HOME_ADVANTAGE
+        if venue == away:
+            return -HOME_ADVANTAGE
+        return 0.0
+    return HOME_ADVANTAGE
+
+
 def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     competition = match["competition"].strip()
     if competition not in COMPETITIONS:
@@ -106,19 +131,20 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"))
     away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"))
     matchday = int(match["matchday"]) if match.get("matchday") else None
-    neutral_site = int(bool(match.get("neutral_site")) or is_neutral_event(match["external_id"]))
-    values = (played_at, competition, matchday, neutral_site, match.get("stage"), match.get("group_name"), home, away, int(match["home_goals"]), int(match["away_goals"]))
+    home_advantage = _home_advantage(match)
+    neutral_site = int(home_advantage == 0)
+    values = (played_at, competition, matchday, neutral_site, home_advantage, match.get("venue_country"), match.get("stage"), match.get("group_name"), home, away, int(match["home_goals"]), int(match["away_goals"]))
     previous = database.execute(
-        "SELECT played_at, competition, matchday, neutral_site, stage, group_name, home_club_id, away_club_id, home_goals, away_goals FROM matches WHERE external_id=?",
+        "SELECT played_at, competition, matchday, neutral_site, home_advantage, venue_country, stage, group_name, home_club_id, away_club_id, home_goals, away_goals FROM matches WHERE external_id=?",
         (match["external_id"],),
     ).fetchone()
     if previous and tuple(previous) == values:
         return
     database.execute(
-        """INSERT INTO matches(external_id, played_at, competition, matchday, neutral_site, stage, group_name, home_club_id, away_club_id, home_goals, away_goals)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO matches(external_id, played_at, competition, matchday, neutral_site, home_advantage, venue_country, stage, group_name, home_club_id, away_club_id, home_goals, away_goals)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(external_id) DO UPDATE SET played_at=excluded.played_at, competition=excluded.competition,
-           matchday=excluded.matchday, neutral_site=excluded.neutral_site, stage=excluded.stage, group_name=excluded.group_name,
+           matchday=excluded.matchday, neutral_site=excluded.neutral_site, home_advantage=excluded.home_advantage, venue_country=excluded.venue_country, stage=excluded.stage, group_name=excluded.group_name,
            home_club_id=excluded.home_club_id, away_club_id=excluded.away_club_id,
            home_goals=excluded.home_goals, away_goals=excluded.away_goals""",
         (match["external_id"], *values),
@@ -141,15 +167,16 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
     for fixture in fixtures:
         home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"))
         away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"))
-        neutral_site = int(bool(fixture.get("neutral_site")) or is_neutral_event(fixture["external_id"]))
+        home_advantage = _home_advantage(fixture)
+        neutral_site = int(home_advantage == 0)
         database.execute(
-            """INSERT INTO fixtures(external_id, scheduled_at, competition, status, matchday, neutral_site, stage, group_name, home_club_id, away_club_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """INSERT INTO fixtures(external_id, scheduled_at, competition, status, matchday, neutral_site, home_advantage, venue_country, stage, group_name, home_club_id, away_club_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(external_id) DO UPDATE SET scheduled_at=excluded.scheduled_at, competition=excluded.competition,
-               status=excluded.status, matchday=excluded.matchday, neutral_site=excluded.neutral_site, stage=excluded.stage, group_name=excluded.group_name,
+               status=excluded.status, matchday=excluded.matchday, neutral_site=excluded.neutral_site, home_advantage=excluded.home_advantage, venue_country=excluded.venue_country, stage=excluded.stage, group_name=excluded.group_name,
                home_club_id=excluded.home_club_id, away_club_id=excluded.away_club_id""",
             (fixture["external_id"], fixture["scheduled_at"], fixture["competition"], fixture["status"],
-             int(fixture["matchday"]) if fixture.get("matchday") else None, neutral_site, fixture.get("stage"), fixture.get("group_name"), home, away),
+             int(fixture["matchday"]) if fixture.get("matchday") else None, neutral_site, home_advantage, fixture.get("venue_country"), fixture.get("stage"), fixture.get("group_name"), home, away),
         )
     # A fonte pode manter por alguns minutos um fixture que já chegou no feed de resultados.
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
@@ -215,7 +242,7 @@ def _apply_timestamp_group(
     outcomes: dict[int, list[OpponentResult]] = defaultdict(list)
     for game in games:
         home, away = before[game["home_club_id"]], before[game["away_club_id"]]
-        home_offset = 0.0 if game["neutral_site"] else HOME_ADVANTAGE
+        home_offset = game["home_advantage"]
         away_offset = -home_offset
         home_score = 1.0 if game["home_goals"] > game["away_goals"] else 0.5 if game["home_goals"] == game["away_goals"] else 0.0
         weight = _goal_margin_weight(game["home_goals"], game["away_goals"]) * knockout_stage_weight(game["stage"])
@@ -224,7 +251,7 @@ def _apply_timestamp_group(
     after = {club: update(before[club], results) for club, results in outcomes.items()}
     effects = []
     for game in games:
-        home_offset = 0.0 if game["neutral_site"] else HOME_ADVANTAGE
+        home_offset = game["home_advantage"]
         for club, opponent, offset in ((game["home_club_id"], game["away_club_id"], home_offset), (game["away_club_id"], game["home_club_id"], -home_offset)):
             omitted = next(result for result in outcomes[club] if result.opponent == before[opponent] and result.rating_offset == offset)
             without = tuple(result for result in outcomes[club] if result is not omitted)
