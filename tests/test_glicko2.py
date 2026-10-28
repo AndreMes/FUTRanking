@@ -47,6 +47,10 @@ def test_rebuild_is_idempotent_and_stores_history():
     second = [(row["name"], row["rating"], row["rd"]) for row in latest_ranking(database)]
     assert first == second
     assert len(first) == 2
+    forecasts = database.execute("SELECT home_expected, home_score FROM match_forecasts ORDER BY external_id").fetchall()
+    assert len(forecasts) == 2
+    assert all(0 < row["home_expected"] < 1 for row in forecasts)
+    assert {row["home_score"] for row in forecasts} == {0.5, 1.0}
 
 
 def test_club_without_game_on_latest_day_remains_in_ranking():
@@ -77,4 +81,3 @@ def test_processes_only_new_matches_in_timestamp_order():
     first = [(row["name"], row["rating"]) for row in latest_ranking(database)]
     assert process_pending(database) == 0
     assert first == [(row["name"], row["rating"]) for row in latest_ranking(database)]
-
