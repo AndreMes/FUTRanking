@@ -58,5 +58,6 @@ COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITI
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}" for competition in ESPN_COMPETITIONS
 )
-DATA_ENRICHMENT_VERSION = "club-country-venue-v2"
+# Atualiza uma única vez os bancos persistidos que ainda não carregaram a Série B 2026.
+DATA_ENRICHMENT_VERSION = "club-country-venue-v3-serie-b"
 
