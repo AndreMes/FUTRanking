@@ -17,7 +17,7 @@ from .club_metadata import COUNTRY_OVERRIDES
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
-        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
+        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
                   home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
                   away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
@@ -58,7 +58,7 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
     rows = database.execute(
-        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
+        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
            WHERE NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
@@ -68,8 +68,9 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     for row in rows:
         neutral_site = bool(row["neutral_site"]) or is_neutral_event(row["external_id"])
         home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
-        home_chance = expected_score(home, away, 0.0 if neutral_site else HOME_ADVANTAGE)
-        fixtures.append({**dict(row), "neutral_site": neutral_site, "home_rating": home.rating, "away_rating": away.rating,
+        home_advantage = 0.0 if neutral_site else float(row["home_advantage"])
+        home_chance = expected_score(home, away, home_advantage)
+        fixtures.append({**dict(row), "neutral_site": neutral_site, "home_advantage": home_advantage, "home_rating": home.rating, "away_rating": away.rating,
                          "home_favoritism": round(home_chance * 100, 1), "away_favoritism": round((1 - home_chance) * 100, 1)})
     return fixtures
 
