@@ -1,4 +1,4 @@
-"""Simulação Monte Carlo da reta final da Série A, sem dependências externas."""
+"""Simulação Monte Carlo de ligas em pontos corridos, sem dependências externas."""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -52,8 +52,10 @@ def simulate_season(
     ratings: dict[str, Rating],
     scenarios: int = SCENARIOS,
     seed: int = 2026,
+    promotion_slots: int = 0,
+    relegation_slots: int = 4,
 ) -> dict[str, object]:
-    """Retorna probabilidades de título e rebaixamento para uma Série A em andamento.
+    """Retorna probabilidades de título, acesso e rebaixamento de uma liga em andamento.
 
     Resultados futuros são independentes condicionais aos ratings atuais. O empate usa a
     taxa observada de empates da temporada, reduzida quando a diferença de força aumenta.
@@ -83,6 +85,7 @@ def simulate_season(
         projected_fixtures.append((team_index[home_name], team_index[away_name], (1.0 - draw) * binary_home, draw))
 
     champion_counts = [0] * len(teams)
+    promotion_counts = [0] * len(teams)
     relegation_counts = [0] * len(teams)
     random = Random(seed)
     for _ in range(scenarios):
@@ -109,7 +112,9 @@ def simulate_season(
                 goal_difference[home] -= 1
         ordered = sorted(range(len(teams)), key=lambda i: (-points[i], -wins[i], -goal_difference[i], -goals_for[i], teams[i]))
         champion_counts[ordered[0]] += 1
-        for index in ordered[-4:]:
+        for index in ordered[:promotion_slots]:
+            promotion_counts[index] += 1
+        for index in ordered[-relegation_slots:]:
             relegation_counts[index] += 1
 
     current_order = sorted(range(len(teams)), key=lambda i: (-base_points[i], -base_wins[i], -base_goal_difference[i], -base_goals_for[i], teams[i]))
@@ -122,6 +127,7 @@ def simulate_season(
             "position": current_position[index],
             "points": row["points"],
             "champion_probability": champion_counts[index] / scenarios,
+            "promotion_probability": promotion_counts[index] / scenarios,
             "relegation_probability": relegation_counts[index] / scenarios,
         })
     return {
@@ -132,5 +138,7 @@ def simulate_season(
         "completed_matches": len(completed_matches),
         "observed_draw_rate": observed_draw_rate,
         "draw_limits": [MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY],
+        "promotion_slots": promotion_slots,
+        "relegation_slots": relegation_slots,
         "teams": sorted(table, key=lambda row: row["position"]),
     }
