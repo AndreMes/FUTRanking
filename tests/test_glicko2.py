@@ -95,6 +95,6 @@ def test_model_selection_uses_temporal_holdout_and_caches_result():
         })
     first = evaluate(database)
     second = evaluate(database)
-    assert len(first["variants"]) == 9
+    assert len(first["variants"]) == 5
     assert first["test_matches"] > 0
     assert first == second
