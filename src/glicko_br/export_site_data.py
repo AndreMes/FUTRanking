@@ -96,7 +96,12 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
         ).fetchall()]
         simulation = (
             simulate_season(matches, competition_fixtures, ratings, seed=season, promotion_slots=promotion_slots)
-            if competition_fixtures else {"available": False}
+            if competition_fixtures else {
+                "available": False,
+                "completed_matches": len(matches),
+                "fixtures_remaining": 0,
+                "unavailable_reason": "Ainda não há fixtures restantes importados para esta competição.",
+            }
         )
         simulation.update({"competition": competition, "season": season})
         if simulation["available"]:
