@@ -83,7 +83,7 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
     crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
     simulations = []
-    for competition, promotion_slots in (("Série A", 0), ("Série B", 4)):
+    for competition, promotion_slots, playoff_promotion_slots in (("Série A", 0, 0), ("Série B", 4, 2)):
         matches = [dict(row) for row in database.execute(
             """SELECT home.name AS home_team, away.name AS away_team, m.home_goals, m.away_goals
                FROM matches m JOIN clubs home ON home.id=m.home_club_id JOIN clubs away ON away.id=m.away_club_id
@@ -101,7 +101,10 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
             and not str(fixture["away_team"]).strip().lower().startswith("tbd")
         ]
         simulation = (
-            simulate_season(matches, competition_fixtures, ratings, seed=season, promotion_slots=promotion_slots)
+            simulate_season(
+                matches, competition_fixtures, ratings, seed=season,
+                promotion_slots=promotion_slots, playoff_promotion_slots=playoff_promotion_slots,
+            )
             if competition_fixtures else {
                 "available": False,
                 "completed_matches": len(matches),
@@ -109,7 +112,7 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
                 "unavailable_reason": "Ainda não há fixtures restantes importados para esta competição.",
             }
         )
-        simulation.update({"competition": competition, "season": season})
+        simulation.update({"competition": competition, "season": season, "playoff_promotion_slots": playoff_promotion_slots})
         if simulation["available"]:
             for team in simulation["teams"]:
                 team["crest"] = crests.get(team["name"])
