@@ -9,9 +9,10 @@ def test_simulation_returns_title_and_relegation_probabilities():
         for index in range(0, 20, 2)
     ]
     fixtures = [{"home_team": teams[0], "away_team": teams[1]}]
-    result = simulate_season(completed, fixtures, {team: Rating() for team in teams}, scenarios=1_000, seed=7, promotion_slots=4)
+    result = simulate_season(completed, fixtures, {team: Rating() for team in teams}, scenarios=1_000, seed=7, promotion_slots=4, playoff_promotion_slots=2)
     assert result["available"] is True
     assert len(result["teams"]) == 20
     assert abs(sum(team["champion_probability"] for team in result["teams"]) - 1.0) < 1e-9
     assert abs(sum(team["promotion_probability"] for team in result["teams"]) - 4.0) < 1e-9
     assert abs(sum(team["relegation_probability"] for team in result["teams"]) - 4.0) < 1e-9
+    assert result["playoff_promotion_slots"] == 2
