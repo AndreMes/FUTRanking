@@ -6,11 +6,11 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
-from .database import connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
+from .database import HOME_ADVANTAGE, connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
 from .espn import EspnClient, EspnError, sync_period
 
 HISTORY_START_YEAR = 2016
-ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}"
+ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}-home-{int(HOME_ADVANTAGE)}"
 
 
 def reset_match_data(database) -> None:
