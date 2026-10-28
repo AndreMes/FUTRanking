@@ -28,6 +28,10 @@ ESPN_COMPETITIONS = (
     Competition("col.1", "Primera A Colombiana"),
     Competition("ecu.1", "LigaPro Equador"),
     Competition("uru.1", "Liga AUF Uruguaia"),
+    Competition("par.1", "Primera División do Paraguai"),
+    Competition("per.1", "Liga 1 do Peru"),
+    Competition("bol.1", "Liga Profissional da Bolívia"),
+    Competition("ven.1", "Primera División da Venezuela"),
 )
 
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
@@ -44,6 +48,10 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Primera A Colombiana": "Colômbia",
     "LigaPro Equador": "Equador",
     "Liga AUF Uruguaia": "Uruguai",
+    "Primera División do Paraguai": "Paraguai",
+    "Liga 1 do Peru": "Peru",
+    "Liga Profissional da Bolívia": "Bolívia",
+    "Primera División da Venezuela": "Venezuela",
 }
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS)
