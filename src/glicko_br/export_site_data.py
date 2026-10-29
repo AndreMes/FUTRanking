@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .database import MAX_INACTIVITY_DAYS, MAX_RANKING_RD, connect, initialise, latest_ranking
-from .glicko2 import Rating, expected_score
+from .glicko2 import Rating
 from .database import HOME_ADVANTAGE
-from .simulation import simulate_season
+from .simulation import outcome_probabilities, simulate_season
 from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
 from .competitions import DOMESTIC_COMPETITION_COUNTRIES
@@ -68,8 +68,31 @@ def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, i
     }
 
 
+DEFAULT_DRAW_RATE = 0.25
+
+
+def fixture_draw_rates(database) -> tuple[dict[tuple[str, str], float], dict[str, float]]:
+    """Taxas observadas por competição/temporada, com histórico como reserva."""
+    seasonal = {
+        (row["competition"], row["season"]): float(row["draw_rate"])
+        for row in database.execute(
+            """SELECT competition, substr(played_at, 1, 4) AS season,
+                      AVG(home_goals = away_goals) AS draw_rate
+               FROM matches GROUP BY competition, season"""
+        )
+    }
+    historical = {
+        row["competition"]: float(row["draw_rate"])
+        for row in database.execute(
+            "SELECT competition, AVG(home_goals = away_goals) AS draw_rate FROM matches GROUP BY competition"
+        )
+    }
+    return seasonal, historical
+
+
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
+    seasonal_draw_rates, historical_draw_rates = fixture_draw_rates(database)
     rows = database.execute(
         """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
                   away.name AS away_team, away.crest_url AS away_crest
@@ -82,12 +105,17 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
         neutral_site = bool(row["neutral_site"]) or is_neutral_event(row["external_id"])
         home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
         home_advantage = 0.0 if neutral_site else float(row["home_advantage"])
-        home_chance = expected_score(home, away, home_advantage)
+        season = str(row["scheduled_at"])[:4]
+        draw_rate = seasonal_draw_rates.get(
+            (row["competition"], season), historical_draw_rates.get(row["competition"], DEFAULT_DRAW_RATE)
+        )
+        home_chance, draw_chance, away_chance = outcome_probabilities(home, away, home_advantage, draw_rate)
         fixture = dict(row)
         fixture["home_crest"] = public_crest_url(fixture.get("home_crest"))
         fixture["away_crest"] = public_crest_url(fixture.get("away_crest"))
         fixtures.append({**fixture, "neutral_site": neutral_site, "home_advantage": home_advantage, "home_rating": home.rating, "away_rating": away.rating,
-                         "home_favoritism": round(home_chance * 100, 1), "away_favoritism": round((1 - home_chance) * 100, 1)})
+                         "home_favoritism": round(home_chance * 100, 1), "draw_probability": round(draw_chance * 100, 1),
+                         "away_favoritism": round(away_chance * 100, 1), "draw_rate_reference": round(draw_rate * 100, 1)})
     return fixtures
 
 
