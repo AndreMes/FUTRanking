@@ -9,16 +9,18 @@ from .api_football import ApiFootballError, sync_season
 from .sofascore import SofascoreError, sync_season as sync_sofascore_season
 from .football_data import FootballDataError, sync_season as sync_football_data_season
 from .espn import EspnError, sync_period as sync_espn_period
+from .coverage_report import coverage_rows, format_report
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="glicko-br")
-    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "sync-espn", "process", "rebuild", "ranking"))
+    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "sync-espn", "process", "rebuild", "ranking", "coverage"))
     parser.add_argument("--database", required=True)
     parser.add_argument("--csv")
-    parser.add_argument("--season", type=int, help="Ano de início da temporada")
+    parser.add_argument("--season", type=int, help="Ano de início da temporada na API-Football")
     parser.add_argument("--date-from", help="Data inicial inclusiva (AAAA-MM-DD)")
     parser.add_argument("--date-to", help="Data final exclusiva (AAAA-MM-DD)")
+    parser.add_argument("--country", help="Restringe o diagnóstico de cobertura a um país")
     args = parser.parse_args()
     database_path = Path(args.database)
     database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +70,8 @@ def main() -> None:
     elif args.command == "ranking":
         for position, row in enumerate(latest_ranking(database), 1):
             print(f"{position:>2}. {row['name']:<24} {row['rating']:7.1f}  RD {row['rd']:5.1f}")
+    elif args.command == "coverage":
+        print(format_report(coverage_rows(database, country=args.country, season=str(args.season) if args.season else None)))
     else:
         print(f"Banco inicializado em {database_path}")
 
