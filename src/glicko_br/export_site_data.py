@@ -300,7 +300,7 @@ def main() -> None:
         "competition": "Campeonato Brasileiro Série A",
         "period_date": ranking[0]["period_date"],
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source": "ESPN",
+        "source": "ESPN + Global Sports Archive (Séries C/D)",
         "scope_note": "Desempenho calculado sobre todas as partidas importadas neste ranking.",
         "eligibility": {"max_inactivity_days": MAX_INACTIVITY_DAYS, "max_rd": MAX_RANKING_RD},
         "teams": teams,
