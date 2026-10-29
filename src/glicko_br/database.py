@@ -31,7 +31,7 @@ MATCHES_TABLE = f"""CREATE TABLE matches (
 SCHEMA = f"""
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clubs (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, primary_color TEXT
 );
 CREATE TABLE IF NOT EXISTS matches {MATCHES_TABLE[MATCHES_TABLE.index('('):]}
 CREATE TABLE IF NOT EXISTS rating_snapshots (
@@ -86,6 +86,8 @@ def initialise(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs ADD COLUMN crest_url TEXT")
     if "country" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN country TEXT")
+    if "primary_color" not in columns:
+        database.execute("ALTER TABLE clubs ADD COLUMN primary_color TEXT")
     for table in ("matches", "fixtures"):
         columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
