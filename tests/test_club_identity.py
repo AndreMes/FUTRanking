@@ -1,4 +1,4 @@
-from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, store_match
+from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, reconcile_provider_identities, store_match
 
 
 def match(external_id: str, home: str, away: str) -> dict[str, str]:
@@ -57,4 +57,16 @@ def test_state_is_inferred_from_state_league_and_keeps_candidates_for_review():
     assert states["Botafogo"] == "SP"
     assert states["Botafogo FC"] == "SP"
     assert identity_candidates(database) == [{"state": "SP", "key": "botafogo", "clubs": ["Botafogo", "Botafogo FC"]}]
+
+
+def test_provider_reconciliation_handles_institutional_names_only_with_full_match_evidence():
+    database = connect(":memory:")
+    initialise(database)
+    store_match(database, {**match("espn:one", "Ferroviária", "Maringá"), "competition": "Série C"})
+    store_match(database, {**match("gsa:one", "Associação Ferroviária de Esportes", "Maringá FC"), "competition": "Série C"})
+
+    merged, duplicates = reconcile_provider_identities(database)
+
+    assert (merged, duplicates) == (2, 1)
+    assert [row["name"] for row in database.execute("SELECT name FROM clubs ORDER BY name")] == ["Ferroviária", "Maringá"]
 
