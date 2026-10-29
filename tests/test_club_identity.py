@@ -1,4 +1,4 @@
-from glicko_br.database import connect, initialise, reconcile_club_identities, store_match
+from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, store_match
 
 
 def match(external_id: str, home: str, away: str) -> dict[str, str]:
@@ -45,3 +45,16 @@ def test_legacy_alias_migration_merges_existing_matches_and_resets_processing():
     assert (merged, duplicates) == (1, 0)
     assert database.execute("SELECT home_club_id FROM matches WHERE external_id='legacy'").fetchone()[0] == 1
     assert database.execute("SELECT COUNT(*) FROM processed_matches").fetchone()[0] == 0
+
+
+def test_state_is_inferred_from_state_league_and_keeps_candidates_for_review():
+    database = connect(":memory:")
+    initialise(database)
+    store_match(database, match("one", "Botafogo", "Flamengo"))
+    store_match(database, match("two", "Botafogo FC", "Vasco da Gama"))
+
+    states = dict(database.execute("SELECT name, state FROM clubs"))
+    assert states["Botafogo"] == "SP"
+    assert states["Botafogo FC"] == "SP"
+    assert identity_candidates(database) == [{"state": "SP", "key": "botafogo", "clubs": ["Botafogo", "Botafogo FC"]}]
+
