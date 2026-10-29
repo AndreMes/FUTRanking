@@ -175,16 +175,16 @@ def current_divisions(database) -> dict[str, set[str]]:
     rows = database.execute(
         """SELECT competition, team FROM (
                SELECT m.competition, home.name AS team FROM matches m JOIN clubs home ON home.id=m.home_club_id
-                WHERE m.competition IN ('Série A', 'Série B', 'Série C') AND m.played_at LIKE ?
+                WHERE m.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND m.played_at LIKE ?
                UNION
                SELECT m.competition, away.name AS team FROM matches m JOIN clubs away ON away.id=m.away_club_id
-                WHERE m.competition IN ('Série A', 'Série B', 'Série C') AND m.played_at LIKE ?
+                WHERE m.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND m.played_at LIKE ?
                UNION
                SELECT f.competition, home.name AS team FROM fixtures f JOIN clubs home ON home.id=f.home_club_id
-                WHERE f.competition IN ('Série A', 'Série B', 'Série C') AND f.scheduled_at LIKE ?
+                WHERE f.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND f.scheduled_at LIKE ?
                UNION
                SELECT f.competition, away.name AS team FROM fixtures f JOIN clubs away ON away.id=f.away_club_id
-                WHERE f.competition IN ('Série A', 'Série B', 'Série C') AND f.scheduled_at LIKE ?
+                WHERE f.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND f.scheduled_at LIKE ?
            )""",
         (f"{season}%", f"{season}%", f"{season}%", f"{season}%"),
     ).fetchall()
