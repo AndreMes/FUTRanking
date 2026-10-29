@@ -65,6 +65,7 @@ def main() -> None:
             removed = prune_stale_fixtures(database, before=(today - timedelta(days=1)).isoformat())
             if removed:
                 print(f'{removed} fixtures antigos sem placar removidos.')
+            print(f'ESPN: {client.request_count} chamadas realizadas com intervalo mínimo de 0,35 s.')
     except EspnError:
         raise
     # O marcador só é publicado junto com o banco após processamento bem-sucedido.
