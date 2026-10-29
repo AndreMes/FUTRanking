@@ -35,7 +35,7 @@ BRAZILIAN_ALIASES = {
     "ad bahia de feira": "Bahia de Feira", "ferroviario ac": "Ferroviário", "ec santo andre": "Santo André",
     "ec sao bento": "São Bento", "ad sao caetano": "São Caetano", "aa aparecidense": "Aparecidense",
     "ec novo hamburgo": "Novo Hamburgo", "goianesia ec": "Goianésia", "resende fc": "Resende",
-    "cianorte fc": "Cianorte", "sampaio correa fc": "Sampaio Corrêa", "nova iguacu fc": "Nova Iguaçu",
+    "cianorte fc": "Cianorte", "ec jacuipe": "Jacuipense", "sampaio correa fc": "Sampaio Corrêa", "nova iguacu fc": "Nova Iguaçu",
     "joinville ec": "Joinville", "manaus fc": "Manaus", "salgueiro ac": "Salgueiro",
     "rio claro fc": "Rio Claro Futebol Clube", "guarani fc": "Guarani", "guarany sc": "Guarany",
     "ca patrocinense": "Patrocinense",
