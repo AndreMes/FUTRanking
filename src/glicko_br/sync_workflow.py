@@ -8,11 +8,12 @@ from pathlib import Path
 from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
 from .database import HOME_ADVANTAGE, connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
 from .espn import EspnClient, EspnError, sync_period
-from .global_sports_archive import GlobalSportsArchiveClient, GlobalSportsArchiveError, bootstrap_serie_d, sync_current as sync_gsa_current
+from .global_sports_archive import GlobalSportsArchiveClient, GlobalSportsArchiveError, bootstrap_serie_d, bootstrap_state_competitions, sync_current as sync_gsa_current
 
 HISTORY_START_YEAR = 2016
 ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}-home-{int(HOME_ADVANTAGE)}"
 GSA_SERIE_D_BOOTSTRAP_VERSION = "global-sports-archive-serie-d-2016-v1"
+GSA_STATE_BOOTSTRAP_VERSION = "global-sports-archive-state-leagues-2016-v1"
 
 
 def reset_match_data(database) -> None:
@@ -75,7 +76,15 @@ def main() -> None:
                 total = bootstrap_serie_d(database, client=gsa_client, today=today)
                 store_source_payload(database, "global-sports-archive-bootstrap", GSA_SERIE_D_BOOTSTRAP_VERSION, "{}")
                 print(f'Carga histórica Série D concluída: {total} partidas GSA.')
-            current_gsa_version = f"global-sports-archive-current-{today.year}-v1"
+            state_bootstrap = not database.execute(
+                "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
+                (GSA_STATE_BOOTSTRAP_VERSION,),
+            ).fetchone()
+            if state_bootstrap:
+                total = bootstrap_state_competitions(database, client=gsa_client, today=today)
+                store_source_payload(database, "global-sports-archive-bootstrap", GSA_STATE_BOOTSTRAP_VERSION, "{}")
+                print(f'Carga histórica dos estaduais concluída: {total} partidas GSA.')
+            current_gsa_version = f"global-sports-archive-current-{today.year}-v2-states"
             current_gsa_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-current' AND request_path=? LIMIT 1",
                 (current_gsa_version,),
