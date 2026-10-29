@@ -2,6 +2,12 @@ name: Atualizar e publicar FUTRanking
 
 on:
   workflow_dispatch:
+    inputs:
+      visual_identity_audit:
+        description: "Comparar escudos somente em candidatos ESPN × GSA"
+        required: false
+        default: false
+        type: boolean
   schedule:
     # 00:15 em São Paulo (UTC-3)
     - cron: "15 3 * * *"
@@ -68,6 +74,11 @@ jobs:
           export PYTHONPATH=src
           python -m glicko_br.cli coverage --database data/rankings.sqlite3 --season "$(date -u +%Y)"
           python -m glicko_br.cli identities --database data/rankings.sqlite3
+      - name: Auditoria visual opcional de identidades
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_identity_audit }}
+        run: |
+          export PYTHONPATH=src
+          python -m glicko_br.cli identities --database data/rankings.sqlite3 --crest-similarity
       - name: Salvar banco para a próxima execução
         shell: bash
         run: |
