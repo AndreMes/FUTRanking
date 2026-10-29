@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from time import sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -10,6 +11,8 @@ from .competitions import ESPN_COMPETITIONS
 from .database import replace_fixtures, store_match, store_source_payload
 
 BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer"
+MAX_REQUEST_ATTEMPTS = 3
+RETRYABLE_HTTP_STATUS = frozenset({429, 500, 502, 503, 504})
 LEAGUES = {competition.espn_slug: competition.name for competition in ESPN_COMPETITIONS}
 COUNTRY_BY_LEAGUE_PREFIX = {
     "arg": "Argentina", "bol": "Bolívia", "bra": "Brasil", "chi": "Chile",
@@ -30,13 +33,19 @@ class EspnClient:
         query = urlencode({"dates": dates, "limit": 1000})
         request_path = f"/{league}/scoreboard?{query}"
         request = Request(f"{BASE_URL}{request_path}", headers={"Accept": "application/json", "User-Agent": "FUTRanking/1.0"})
-        try:
-            with urlopen(request, timeout=30) as response:
-                raw = response.read().decode("utf-8")
-        except HTTPError as error:
-            raise EspnError(f"ESPN respondeu HTTP {error.code} para {request_path}") from error
-        except URLError as error:
-            raise EspnError(f"Não foi possível acessar a ESPN: {error.reason}") from error
+        for attempt in range(MAX_REQUEST_ATTEMPTS):
+            try:
+                with urlopen(request, timeout=30) as response:
+                    raw = response.read().decode("utf-8")
+                break
+            except HTTPError as error:
+                if error.code not in RETRYABLE_HTTP_STATUS or attempt == MAX_REQUEST_ATTEMPTS - 1:
+                    raise EspnError(f"ESPN respondeu HTTP {error.code} para {request_path}") from error
+            except (URLError, TimeoutError, ConnectionResetError) as error:
+                if attempt == MAX_REQUEST_ATTEMPTS - 1:
+                    reason = getattr(error, "reason", error)
+                    raise EspnError(f"Não foi possível acessar a ESPN: {reason}") from error
+            sleep(2 ** attempt)
         try:
             payload = json.loads(raw)
         except json.JSONDecodeError as error:
