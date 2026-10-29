@@ -38,3 +38,31 @@ def test_espn_event_upserts_by_stable_event_id_and_final_beats_fixture():
     matches = exported_matches(database)
     assert len(matches) == 1
     assert matches[0]["external_id"] == "espn:123"
+
+
+def test_espn_reuses_persisted_club_country_before_requesting_profile():
+    database = connect(":memory:")
+    initialise(database)
+    database.execute("INSERT INTO clubs(name, country) VALUES (?, ?)", ("Casa", "Brasil"))
+    payload = {"events": [event()]}
+    competitors = payload["events"][0]["competitions"][0]["competitors"]
+    competitors[0]["team"]["id"] = "home-id"
+    competitors[1]["team"]["id"] = "away-id"
+
+    class Client:
+        def __init__(self):
+            self.country_requests = []
+
+        def get_scoreboard(self, league, *, dates):
+            return payload, "{}", f"/{league}/scoreboard"
+
+        def get_team_country(self, league, team_id):
+            self.country_requests.append(team_id)
+            return "Argentina"
+
+    client = Client()
+    sync_period(database, "20261024", leagues={"bra.1": "Série A"}, client=client)
+
+    assert client.country_requests == ["away-id"]
+    countries = dict(database.execute("SELECT name, country FROM clubs"))
+    assert countries == {"Casa": "Brasil", "Fora": "Argentina"}
