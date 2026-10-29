@@ -2,7 +2,7 @@ const q = new URLSearchParams(location.search), page = document.body.dataset.pag
 const date = v => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${v}T12:00:00`));
 const time = v => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(v));
 const matchTime = v => v.includes('T') ? time(v) : date(v);
-const crest = (url, name) => url ? `<img class="crest" src="${url}" alt="Brasão do ${name}" loading="lazy">` : '';
+const crest = (url, name) => url ? `<img class="crest" src="${url}" alt="Brasão do ${name}" loading="lazy" referrerpolicy="no-referrer">` : '';
 const club = (name, url, link = false) => {
   const content = `${crest(url, name)}${name}`;
   return link ? `<a class="club club-link" href="clube.html?time=${encodeURIComponent(name)}">${content}</a>` : `<span class="club">${content}</span>`;
