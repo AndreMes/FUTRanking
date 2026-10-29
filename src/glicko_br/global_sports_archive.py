@@ -352,7 +352,13 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
 def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | None = None, full: bool = False) -> tuple[int, int]:
     today = today or date.today()
     total = reused = 0
-    for competition in COMPETITIONS:
+    # Os estaduais selecionados ocorrem no primeiro semestre. Fora dele, a
+    # carga histórica já os consolidou; mantemos apenas C/D para não gastar
+    # consultas diárias em torneios encerrados.
+    tracked = COMPETITIONS if today.month <= 6 else tuple(
+        competition for competition in COMPETITIONS if competition.name in {"Série C", "Série D"}
+    )
+    for competition in tracked:
         count, existing = sync_season(database, competition, today.year, client=client, full=full)
         total += count
         reused += existing
