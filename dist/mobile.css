@@ -7,7 +7,8 @@
   .brand { font-size: 1rem; }
   nav { order: 3; display: flex; width: 100%; justify-content: space-between; gap: 0; overflow: visible; padding: 4px 0 0; }
   nav a { min-width: 0; flex: 0 1 auto; padding: 6px 0; text-align: center; white-space: nowrap; font-size: clamp(.62rem, 2.9vw, .74rem); letter-spacing: -.02em; }
-  .page { padding: 34px clamp(20px, 6vw, 28px) 56px; }
+  /* Mesmo respiro do herói da home para o cabeçalho de conteúdo das demais abas. */
+  .wrap.page { padding: 40px clamp(20px, 6vw, 28px) 70px; }
   h1 { font-size: clamp(2.45rem, 13vw, 3.8rem); line-height: .95; }
   h2 { margin-top: 30px; }
   .panel { margin-top: 20px; border-radius: 12px; }
