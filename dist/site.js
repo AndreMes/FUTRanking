@@ -88,52 +88,68 @@ function teamRatingHistory(matches, team) {
   })).filter(point => Number.isFinite(point.rating)).sort((a, b) => new Date(a.at) - new Date(b.at));
 }
 
-function ratingChartSvg(history, team) {
+function teamPositionHistory(matches, team) {
+  const ordered = [...matches].filter(match => Number.isFinite(match.home_rating_after) && Number.isFinite(match.away_rating_after)).sort((a, b) => new Date(a.played_at) - new Date(b.played_at));
+  const ratings = new Map(), history = [];
+  for (let index = 0; index < ordered.length;) {
+    const at = ordered[index].played_at, group = [];
+    while (index < ordered.length && ordered[index].played_at === at) group.push(ordered[index++]);
+    group.forEach(match => { ratings.set(match.home_team, match.home_rating_after); ratings.set(match.away_team, match.away_rating_after); });
+    if (group.some(match => match.home_team === team || match.away_team === team)) {
+      const ranking = [...ratings.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'));
+      history.push({ at, position: ranking.findIndex(([name]) => name === team) + 1 });
+    }
+  }
+  return history;
+}
+
+function ratingChartSvg(history, team, metric = 'rating') {
   if (!history.length) return `<p class="empty-list">Não há partidas no intervalo selecionado.</p>`;
   const width = 800, height = 260, padding = { top: 20, right: 24, bottom: 42, left: 52 };
-  const dates = history.map(point => new Date(point.at).getTime()), ratings = history.map(point => point.rating);
+  const dates = history.map(point => new Date(point.at).getTime()), ratings = history.map(point => point[metric]);
   const minDate = Math.min(...dates), maxDate = Math.max(...dates), minRating = Math.min(...ratings), maxRating = Math.max(...ratings);
-  const ratingPad = Math.max(12, (maxRating - minRating) * 0.15), low = minRating - ratingPad, high = maxRating + ratingPad;
+  const ratingPad = metric === 'position' ? 0 : Math.max(12, (maxRating - minRating) * 0.15), low = metric === 'position' ? maxRating : minRating - ratingPad, high = metric === 'position' ? minRating : maxRating + ratingPad;
   const x = value => padding.left + (maxDate === minDate ? (width - padding.left - padding.right) / 2 : (value - minDate) / (maxDate - minDate) * (width - padding.left - padding.right));
   const y = value => padding.top + (high - value) / (high - low) * (height - padding.top - padding.bottom);
-  const line = history.map(point => `${x(new Date(point.at).getTime()).toFixed(1)},${y(point.rating).toFixed(1)}`).join(' ');
+  const line = history.map(point => `${x(new Date(point.at).getTime()).toFixed(1)},${y(point[metric]).toFixed(1)}`).join(' ');
   const baseline = height - padding.bottom;
   const area = `${padding.left},${baseline} ${line} ${width - padding.right},${baseline}`;
   const tickValues = [0, 0.5, 1].map(fraction => low + (high - low) * fraction);
   const dateLabel = value => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', month: 'short', year: '2-digit' }).format(new Date(value));
   const dateTicks = [0, .25, .5, .75, 1].map(fraction => minDate + (maxDate - minDate) * fraction);
-  const grid = tickValues.map(value => `<line class="grid" x1="${padding.left}" x2="${width - padding.right}" y1="${y(value)}" y2="${y(value)}"/><text class="axis-label" x="${padding.left - 8}" y="${y(value) + 4}" text-anchor="end">${value.toFixed(0)}</text>`).join('');
+  const grid = tickValues.map(value => `<line class="grid" x1="${padding.left}" x2="${width - padding.right}" y1="${y(value)}" y2="${y(value)}"/><text class="axis-label" x="${padding.left - 8}" y="${y(value) + 4}" text-anchor="end">${metric === 'position' ? `${Math.round(value)}º` : value.toFixed(0)}</text>`).join('');
   const xLabels = dateTicks.map(value => `<text class="axis-label" x="${x(value)}" y="${height - 14}" text-anchor="middle">${dateLabel(value)}</text>`).join('');
-  const points = history.map(point => `<circle class="point" cx="${x(new Date(point.at).getTime())}" cy="${y(point.rating)}" r="3.5"/>`).join('');
-  const change = history.at(-1).rating - history[0].rating;
-  return `<svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória interativa do rating de ${team}"><defs><linearGradient id="rating-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#159b78"/><stop offset="1" stop-color="#159b78" stop-opacity="0"/></linearGradient></defs>${grid}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${points}<line class="crosshair" hidden/><circle class="focus" r="6" hidden/><rect class="hitbox" x="${padding.left}" y="${padding.top}" width="${width - padding.left - padding.right}" height="${height - padding.top - padding.bottom}"/>${xLabels}</svg><div class="chart-tooltip" hidden></div><div class="chart-summary"><span>Primeiro ponto: <strong>${history[0].rating.toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div>`;
+  const points = history.map(point => `<circle class="point" cx="${x(new Date(point.at).getTime())}" cy="${y(point[metric])}" r="3.5"/>`).join('');
+  const change = history.at(-1)[metric] - history[0][metric], label = metric === 'position' ? 'Posição' : 'Rating';
+  return `<svg class="rating-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória interativa de ${label.toLowerCase()} de ${team}"><defs><linearGradient id="rating-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#159b78"/><stop offset="1" stop-color="#159b78" stop-opacity="0"/></linearGradient></defs>${grid}<polygon class="area" points="${area}"/><polyline class="line" points="${line}"/>${points}<line class="crosshair" hidden/><circle class="focus" r="6" hidden/><rect class="hitbox" x="${padding.left}" y="${padding.top}" width="${width - padding.left - padding.right}" height="${height - padding.top - padding.bottom}"/>${xLabels}</svg><div class="chart-tooltip" hidden></div><div class="chart-summary"><span>Primeiro ponto: <strong>${metric === 'position' ? `${history[0][metric]}º` : history[0][metric].toFixed(1)}</strong></span><span>Variação: <strong>${change >= 0 ? '+' : ''}${metric === 'position' ? `${change} posições` : change.toFixed(1)}</strong></span><span>Partidas: <strong>${history.length}</strong></span></div>`;
 }
 
 function mountRatingChart(host, matches, team) {
   const history = teamRatingHistory(matches, team);
+  const positionHistory = teamPositionHistory(matches, team);
   if (!history.length) { host.innerHTML = `<section class="chart-card"><h2>Trajetória do rating</h2><p>Ainda não há resultados suficientes para desenhar a trajetória deste clube.</p></section>`; return; }
   const toInputDate = value => new Date(value).toISOString().slice(0, 10);
   const first = new Date(history[0].at).getTime(), last = new Date(history.at(-1).at).getTime();
-  host.innerHTML = `<section class="chart-card"><h2>Trajetória do rating</h2><p>Cada ponto representa o rating após uma partida rastreada. Ajuste o período para mudar o eixo X; passe o cursor ou toque em um ponto para ver data, horário e valor.</p><div class="chart-controls"><div class="chart-presets" aria-label="Período do gráfico"><button type="button" data-months="all" class="active">Tudo</button><button type="button" data-months="24">24 meses</button><button type="button" data-months="12">12 meses</button><button type="button" data-months="6">6 meses</button><button type="button" data-months="3">3 meses</button></div><label class="chart-date">De<input type="date" data-range="start" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(first)}"></label><label class="chart-date">Até<input type="date" data-range="end" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(last)}"></label></div><div class="chart-canvas"></div></section>`;
-  const canvas = host.querySelector('.chart-canvas'), startInput = host.querySelector('[data-range="start"]'), endInput = host.querySelector('[data-range="end"]'), buttons = [...host.querySelectorAll('[data-months]')];
-  const bindInteraction = visible => {
+  host.innerHTML = `<section class="chart-card"><h2>Histórico do clube</h2><p>Escolha rating ou posição. A posição é reconstruída com os ratings disponíveis em cada data; 1º fica no topo do gráfico.</p><div class="chart-controls"><div class="chart-presets" aria-label="Métrica"><button type="button" data-metric="rating" class="active">Rating</button><button type="button" data-metric="position">Posição</button></div><div class="chart-presets" aria-label="Período do gráfico"><button type="button" data-months="all" class="active">Tudo</button><button type="button" data-months="24">24 meses</button><button type="button" data-months="12">12 meses</button><button type="button" data-months="6">6 meses</button><button type="button" data-months="3">3 meses</button></div><label class="chart-date">De<input type="date" data-range="start" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(first)}"></label><label class="chart-date">Até<input type="date" data-range="end" min="${toInputDate(first)}" max="${toInputDate(last)}" value="${toInputDate(last)}"></label></div><div class="chart-canvas"></div></section>`;
+  const canvas = host.querySelector('.chart-canvas'), startInput = host.querySelector('[data-range="start"]'), endInput = host.querySelector('[data-range="end"]'), buttons = [...host.querySelectorAll('[data-months]')], metricButtons = [...host.querySelectorAll('[data-metric]')]; let metric = 'rating';
+  const bindInteraction = (visible, selectedMetric = 'rating') => {
     const svg = canvas.querySelector('.rating-chart');
     if (!svg || !visible.length) return;
     const tooltip = canvas.querySelector('.chart-tooltip'), crosshair = svg.querySelector('.crosshair'), focus = svg.querySelector('.focus');
     const width = 800, height = 260, padding = { top: 20, right: 24, bottom: 42, left: 52 };
-    const dates = visible.map(point => new Date(point.at).getTime()), ratings = visible.map(point => point.rating);
+    const dates = visible.map(point => new Date(point.at).getTime()), ratings = visible.map(point => point[selectedMetric]);
     const minDate = Math.min(...dates), maxDate = Math.max(...dates), minRating = Math.min(...ratings), maxRating = Math.max(...ratings);
-    const ratingPad = Math.max(12, (maxRating - minRating) * 0.15), low = minRating - ratingPad, high = maxRating + ratingPad;
+    const ratingPad = selectedMetric === 'position' ? 0 : Math.max(12, (maxRating - minRating) * 0.15), low = selectedMetric === 'position' ? maxRating : minRating - ratingPad, high = selectedMetric === 'position' ? minRating : maxRating + ratingPad;
     const x = value => padding.left + (maxDate === minDate ? (width - padding.left - padding.right) / 2 : (value - minDate) / (maxDate - minDate) * (width - padding.left - padding.right));
     const y = value => padding.top + (high - value) / (high - low) * (height - padding.top - padding.bottom);
     const show = event => {
       const rect = svg.getBoundingClientRect(), chartX = (event.clientX - rect.left) / rect.width * width;
       let index = 0, distance = Infinity;
       visible.forEach((point, candidate) => { const nextDistance = Math.abs(x(new Date(point.at).getTime()) - chartX); if (nextDistance < distance) { index = candidate; distance = nextDistance; } });
-      const point = visible[index], pointX = x(new Date(point.at).getTime()), pointY = y(point.rating);
+      const point = visible[index], pointX = x(new Date(point.at).getTime()), pointY = y(point[selectedMetric]);
       crosshair.setAttribute('x1', pointX); crosshair.setAttribute('x2', pointX); crosshair.setAttribute('y1', padding.top); crosshair.setAttribute('y2', height - padding.bottom); crosshair.hidden = false;
       focus.setAttribute('cx', pointX); focus.setAttribute('cy', pointY); focus.hidden = false;
-      tooltip.innerHTML = `<span class="chart-tip-date">${time(point.at)}</span><strong>Rating ${Math.round(point.rating)}</strong>`;
+      tooltip.innerHTML = `<span class="chart-tip-date">${time(point.at)}</span><strong>${selectedMetric === 'position' ? `${point.position}º lugar` : `Rating ${Math.round(point.rating)}`}</strong>`;
       tooltip.style.left = `${pointX / width * 100}%`; tooltip.style.top = `${pointY / height * 100}%`; tooltip.hidden = false;
     };
     const hide = event => { if (event.pointerType !== 'touch') { tooltip.hidden = true; crosshair.hidden = true; focus.hidden = true; } };
@@ -141,9 +157,10 @@ function mountRatingChart(host, matches, team) {
   };
   const render = () => {
     const start = new Date(`${startInput.value}T00:00:00-03:00`).getTime(), end = new Date(`${endInput.value}T23:59:59-03:00`).getTime();
-    const visible = history.filter(point => { const at = new Date(point.at).getTime(); return at >= start && at <= end; });
-    canvas.innerHTML = start <= end ? ratingChartSvg(visible, team) : '<p class="empty-list">A data inicial deve ser anterior à data final.</p>';
-    if (start <= end) bindInteraction(visible);
+    const selectedHistory = metric === 'position' ? positionHistory : history;
+    const visible = selectedHistory.filter(point => { const at = new Date(point.at).getTime(); return at >= start && at <= end; });
+    canvas.innerHTML = start <= end ? ratingChartSvg(visible, team, metric) : '<p class="empty-list">A data inicial deve ser anterior à data final.</p>';
+    if (start <= end) bindInteraction(visible, metric);
   };
   const setPeriod = months => {
     let start = first;
@@ -153,6 +170,7 @@ function mountRatingChart(host, matches, team) {
     render();
   };
   buttons.forEach(button => button.addEventListener('click', () => setPeriod(button.dataset.months)));
+  metricButtons.forEach(button => button.addEventListener('click', () => { metric = button.dataset.metric; metricButtons.forEach(item => item.classList.toggle('active', item === button)); render(); }));
   [startInput, endInput].forEach(input => input.addEventListener('change', () => { buttons.forEach(button => button.classList.remove('active')); render(); }));
   render();
 }
@@ -279,7 +297,16 @@ function comparisons(data) {
 function dataHealth(data) {
   document.body.innerHTML = shell('Saúde dos dados', 'Transparência');
   const rows = data.data_health || [];
-  el('#content').innerHTML = `<p>Visão do que está efetivamente armazenado e usado pelo ranking. A coleta diária revisa o período recente; a data de sincronização deste painel é ${time(data.generated_at)}.</p><section class="panel health-panel"><div class="row health-row table-head"><span>Competição</span><span>Resultados</span><span>Primeiro jogo</span><span>Último resultado</span><span>Fixtures</span></div>${rows.map(row => `<div class="row health-row"><strong>${row.competition}</strong><span>${row.finished_matches.toLocaleString('pt-BR')}</span><span>${row.first_match_at ? matchTime(row.first_match_at) : '—'}</span><span>${row.last_match_at ? matchTime(row.last_match_at) : '—'}</span><span>${row.pending_fixtures.toLocaleString('pt-BR')}</span></div>`).join('') || '<p class="empty-list">Ainda não há cobertura publicada.</p>'}</section><section class="prose"><h2>Como ler</h2><p><strong>Resultados</strong> são jogos finalizados que podem alterar o rating. <strong>Fixtures</strong> são jogos sem placar final; servem para agenda e simulações, mas não atualizam ratings. Uma competição nova passa por carga histórica única antes de entrar na rotina incremental.</p></section>`;
+  const coverage = data.coverage || [];
+  const countries = [...new Set(coverage.map(row => row.country))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const seasons = [...new Set(coverage.map(row => row.season))].sort().reverse();
+  el('#content').innerHTML = `<p>Visão do que está efetivamente armazenado e usado pelo ranking. A coleta diária revisa o período recente; a data de sincronização deste painel é ${time(data.generated_at)}.</p><section class="panel health-panel"><div class="row health-row table-head"><span>Competição</span><span>Resultados</span><span>Primeiro jogo</span><span>Último resultado</span><span>Fixtures</span></div>${rows.map(row => `<div class="row health-row"><strong>${row.competition}</strong><span>${row.finished_matches.toLocaleString('pt-BR')}</span><span>${row.first_match_at ? matchTime(row.first_match_at) : '—'}</span><span>${row.last_match_at ? matchTime(row.last_match_at) : '—'}</span><span>${row.pending_fixtures.toLocaleString('pt-BR')}</span></div>`).join('') || '<p class="empty-list">Ainda não há cobertura publicada.</p>'}</section><section class="prose"><h2>Cobertura por país e temporada</h2><p>Use estes filtros para identificar onde a base histórica é mais densa antes de incluir novas competições.</p></section><div class="list-tools"><select class="list-filter coverage-country" aria-label="Filtrar cobertura por país"><option value="">Todos os países</option>${countries.map(country => `<option>${country}</option>`).join('')}</select><select class="list-filter coverage-season" aria-label="Filtrar cobertura por temporada"><option value="">Todas as temporadas</option>${seasons.map(season => `<option>${season}</option>`).join('')}</select></div><section class="panel health-panel coverage-panel"></section><section class="prose"><h2>Como ler</h2><p><strong>Resultados</strong> são jogos finalizados que podem alterar o rating. <strong>Fixtures</strong> são jogos sem placar final; servem para agenda e simulações, mas não atualizam ratings. Uma competição nova passa por carga histórica única antes de entrar na rotina incremental.</p></section>`;
+  const countryFilter = el('.coverage-country'), seasonFilter = el('.coverage-season'), panel = el('.coverage-panel');
+  const renderCoverage = () => {
+    const visible = coverage.filter(row => (!countryFilter.value || row.country === countryFilter.value) && (!seasonFilter.value || row.season === seasonFilter.value));
+    panel.innerHTML = `<div class="row health-row table-head"><span>País · temporada</span><span>Competição</span><span>Clubes</span><span>Resultados</span><span></span></div>${visible.map(row => `<div class="row health-row"><strong>${row.country} · ${row.season}</strong><span>${row.competition}</span><span>${row.teams}</span><span>${row.matches.toLocaleString('pt-BR')}</span><span></span></div>`).join('') || '<p class="empty-list">Não há dados neste recorte.</p>'}`;
+  };
+  countryFilter.addEventListener('change', renderCoverage); seasonFilter.addEventListener('change', renderCoverage); renderCoverage();
 }
 
 const percent = value => value == null ? '—' : `${(Number(value) * 100).toFixed(1)}%`;
