@@ -40,8 +40,9 @@ ESPN_COMPETITIONS = (
     Competition("ven.1", "Primera División da Venezuela"),
 )
 
-# Competições estaduais coletadas exclusivamente pela Global Sports Archive.
-# Elas pertencem ao catálogo comum sem aumentar as chamadas à ESPN.
+# Competições estaduais que são coletadas exclusivamente pela Global Sports
+# Archive. Elas ficam no catálogo comum para que banco, exportação e filtros
+# reconheçam os seus jogos, sem aumentar as chamadas à ESPN.
 GSA_ONLY_COMPETITIONS = (
     "Paulista A2",
     "Campeonato Paranaense",
@@ -83,10 +84,23 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Primera División da Venezuela": "Venezuela",
 }
 
+# Os estaduais não são apenas competições: eles também fornecem uma evidência
+# pública e estável da UF de origem do clube. Isso permite apresentar o estado
+# no perfil e torna a auditoria de homônimos (por exemplo, Botafogo) segura.
+BRAZILIAN_STATE_BY_COMPETITION = {
+    "Campeonato Paulista": "SP", "Paulista A2": "SP",
+    "Campeonato Carioca": "RJ", "Campeonato Mineiro": "MG",
+    "Campeonato Gaúcho": "RS", "Campeonato Paranaense": "PR",
+    "Campeonato Baiano": "BA", "Campeonato Pernambucano": "PE",
+    "Campeonato Cearense": "CE", "Campeonato Goiano": "GO",
+    "Campeonato Catarinense": "SC",
+}
+
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}" for competition in ESPN_COMPETITIONS
 )
 # Atualiza uma única vez os bancos persistidos que ainda não carregaram a Série B 2026.
 DATA_ENRICHMENT_VERSION = "club-country-venue-v3-serie-b"
+
 
