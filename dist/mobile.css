@@ -45,3 +45,15 @@
   .row:not(.rank):not(.simulation-row) .rating { font-size: .59rem; }
   .simulation-row { grid-template-columns: 26px minmax(0, 1fr) 42px 58px; font-size: .78rem; }
 }
+
+
+.forecast-1x2 { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: .72rem; letter-spacing: -.01em; }
+.forecast-1x2 span { display: inline-flex; gap: 2px; align-items: baseline; }
+.forecast-1x2 b { color: var(--ink); font-size: .78rem; }
+.forecast-1x2 span:nth-child(2) { padding-inline: 6px; border-inline: 1px solid var(--line); }
+
+@media (max-width: 700px) {
+  .forecast-1x2 { gap: 5px; font-size: .66rem; }
+  .forecast-1x2 b { font-size: .7rem; }
+  .forecast-1x2 span:nth-child(2) { padding-inline: 4px; }
+}
