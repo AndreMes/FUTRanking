@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from datetime import date, timedelta
 from pathlib import Path
+from time import monotonic
 
 from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
 from .database import HOME_ADVANTAGE, connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
@@ -37,6 +38,8 @@ def main() -> None:
     initialise(database)
     client = EspnClient()
     gsa_client = GlobalSportsArchiveClient()
+    workflow_started = monotonic()
+    print(f"[sync] início: {today.isoformat()}; última sincronização: {last_sync or 'nenhuma'}; modo completo: {args.full}.")
     bootstrap = not database.execute(
         "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' AND request_path=? LIMIT 1",
         (ESPN_BOOTSTRAP_VERSION,),
@@ -49,9 +52,14 @@ def main() -> None:
                 recreate_matches_table(database)
                 total = 0
                 for season in range(HISTORY_START_YEAR, today.year + 1):
+                    started = monotonic()
+                    requests_before = client.request_count
                     count = sync_period(database, str(season), client=client)
                     total += count
-                    print(f'Temporada {season}: {count} resultados ESPN encontrados.')
+                    print(
+                        f'[ESPN][histórico] temporada {season}: {count} resultados; '
+                        f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                    )
                 if not total:
                     raise EspnError('A carga histórica ESPN não retornou resultados; banco anterior preservado.')
                 store_source_payload(database, "espn-bootstrap", ESPN_BOOTSTRAP_VERSION, "{}")
@@ -61,13 +69,24 @@ def main() -> None:
                 # segurança. Se algum ciclo falhar, o marcador persistido faz a
                 # próxima execução recuperar automaticamente o período perdido.
                 start = min(last_sync - timedelta(days=1), today - timedelta(days=1)) if last_sync else today - timedelta(days=1)
+                print(f'[ESPN][rotina] consultando {start.isoformat()} até {today.isoformat()} (1 dia de segurança).')
                 for offset in range((today - start).days + 1):
                     checked = start + timedelta(days=offset)
+                    started = monotonic()
+                    requests_before = client.request_count
                     count = sync_period(database, checked.strftime('%Y%m%d'), client=client)
-                    print(f'{checked.isoformat()}: {count} resultados ESPN encontrados.')
+                    print(
+                        f'[ESPN][rotina] {checked.isoformat()}: {count} resultados; '
+                        f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                    )
                 if args.full:
+                    started = monotonic()
+                    requests_before = client.request_count
                     count = sync_period(database, str(today.year), client=client)
-                    print(f'Reconciliação {today.year}: {count} resultados ESPN encontrados.')
+                    print(
+                        f'[ESPN][reconciliação] {today.year}: {count} resultados; '
+                        f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                    )
             gsa_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
                 (GSA_SERIE_D_BOOTSTRAP_VERSION,),
@@ -100,6 +119,7 @@ def main() -> None:
             if removed:
                 print(f'{removed} fixtures antigos sem placar removidos.')
             print(f'ESPN: {client.request_count} chamadas realizadas com intervalo mínimo de 0,35 s.')
+            print(f'[sync] coleta concluída em {monotonic() - workflow_started:.1f}s.')
     except (EspnError, GlobalSportsArchiveError):
         raise
     # O marcador só é publicado junto com o banco após processamento bem-sucedido.
