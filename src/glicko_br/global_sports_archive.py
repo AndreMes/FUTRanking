@@ -182,6 +182,10 @@ def _match_rows(html: str, competition: str, *, default_stage: str = "") -> list
         if len(teams) < 2 or not score:
             continue
         (home_crest, home), (away_crest, away) = teams[:2]
+        # Alguns cartões históricos incompletos repetem o mesmo clube nos dois
+        # lados. Não são partidas válidas e o banco também as rejeita.
+        if home.strip().casefold() == away.strip().casefold():
+            continue
         match_id = link.group("id")
         rows[match_id] = {
             "external_id": f"gsa:{match_id}",
