@@ -258,6 +258,24 @@ def data_sources_for(competition: str) -> list[dict[str, str]]:
         return [{"period": "2016–2025", "source": "ESPN", "url": "https://www.espn.com/soccer/scoreboard/_/league/bra.3"}, {"period": "2026–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-c-2026/77984"}]
     if competition == "Série D":
         return [{"period": "2016–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-d-2026/77985"}]
+    state_sources = {
+        "Campeonato Paulista": "https://globalsportsarchive.com/en/soccer/competition/paulistao-casas-bahia-2026/78189",
+        "Paulista A2": "https://globalsportsarchive.com/en/soccer/competition/paulistao-a2-rivalo-2026/78190",
+        "Campeonato Carioca": "https://globalsportsarchive.com/en/soccer/competition/campeonato-carioca-superbet-2026/78042",
+        "Campeonato Mineiro": "https://globalsportsarchive.com/en/soccer/competition/campeonato-mineiro-sicoob-modulo-i-2026/78224",
+        "Campeonato Gaúcho": "https://globalsportsarchive.com/en/soccer/competition/gauchao-superbet-2026/78221",
+        "Campeonato Paranaense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-paranaense-serie-ouro-2026/77422",
+        "Campeonato Baiano": "https://globalsportsarchive.com/en/soccer/competition/baianao-serie-a-2027/81914",
+        "Campeonato Pernambucano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-pernambucano-a1-2026/78215",
+        "Campeonato Cearense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-cearense-superbet-serie-a-2026/78058",
+        "Campeonato Goiano": "https://globalsportsarchive.com/en/soccer/competition/goianao-novomundo-2026/78214",
+        "Campeonato Catarinense": "https://globalsportsarchive.com/en/soccer/competition/catarinense-fort-atacadista-2026/78219",
+    }
+    if competition in state_sources:
+        sources = [{"period": "2016–atual", "source": "Global Sports Archive", "url": state_sources[competition]}]
+        if competition in espn:
+            sources.insert(0, {"period": "2016–atual", "source": "ESPN", "url": f"https://www.espn.com/soccer/scoreboard/_/league/{espn[competition]}"})
+        return sources
     if competition in espn:
         return [{"period": "2016–atual", "source": "ESPN", "url": f"https://www.espn.com/soccer/scoreboard/_/league/{espn[competition]}"}]
     return []
