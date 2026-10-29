@@ -8,7 +8,7 @@ from math import log
 from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, expected_score, update
-from .competitions import COMPETITION_NAMES
+from .competitions import BRAZILIAN_STATE_BY_COMPETITION, COMPETITION_NAMES
 from .club_identity import alias_key, canonical_name
 from .neutral_sites import is_neutral_event
 
@@ -32,7 +32,7 @@ MATCHES_TABLE = f"""CREATE TABLE matches (
 SCHEMA = f"""
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clubs (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, primary_color TEXT
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, state TEXT, primary_color TEXT
 );
 CREATE TABLE IF NOT EXISTS club_aliases (
   alias_key TEXT NOT NULL, country_key TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
@@ -91,6 +91,8 @@ def initialise(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs ADD COLUMN crest_url TEXT")
     if "country" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN country TEXT")
+    if "state" not in columns:
+        database.execute("ALTER TABLE clubs ADD COLUMN state TEXT")
     if "primary_color" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN primary_color TEXT")
     for table in ("matches", "fixtures"):
@@ -98,6 +100,7 @@ def initialise(database: sqlite3.Connection) -> None:
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    _infer_historical_club_states(database)
     reconcile_club_identities(database)
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
@@ -121,7 +124,7 @@ def register_club_alias(database: sqlite3.Connection, alias: str, country: str |
     _register_alias(database, alias, country, club_id)
 
 
-def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None) -> int:
+def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None, state: str | None = None) -> int:
     country_key = _country_key(country)
     key = alias_key(name)
     alias = database.execute(
@@ -139,6 +142,8 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
         database.execute("UPDATE clubs SET crest_url=? WHERE id=?", (crest_url, club_id))
     if country:
         database.execute("UPDATE clubs SET country=? WHERE id=?", (country, club_id))
+    if state and country_key == "BR":
+        database.execute("UPDATE clubs SET state=? WHERE id=?", (state, club_id))
     return club_id
 
 
@@ -155,18 +160,47 @@ def _country_key(country: str | None) -> str | None:
 
 
 def _clear_rating_rebuild_state(database: sqlite3.Connection) -> None:
+    """Força reconstrução após mudar a identidade histórica de um clube."""
     for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "rating_model", "model_evaluations"):
         database.execute(f"DELETE FROM {table}")
+
+
+def _infer_historical_club_states(database: sqlite3.Connection) -> None:
+    """Preenche UF somente quando o histórico estadual oferece uma evidência única."""
+    rows = database.execute(
+        """SELECT m.competition, m.home_club_id AS club_id FROM matches m
+           UNION ALL SELECT m.competition, m.away_club_id FROM matches m
+           UNION ALL SELECT f.competition, f.home_club_id FROM fixtures f
+           UNION ALL SELECT f.competition, f.away_club_id FROM fixtures f"""
+    ).fetchall()
+    states: dict[int, set[str]] = defaultdict(set)
+    for row in rows:
+        state = BRAZILIAN_STATE_BY_COMPETITION.get(str(row["competition"]))
+        if state:
+            states[int(row["club_id"])].add(state)
+    for club_id, candidates in states.items():
+        if len(candidates) == 1:
+            database.execute(
+                "UPDATE clubs SET state=COALESCE(state, ?) WHERE id=? AND country IN ('Brasil', 'Brazil')",
+                (next(iter(candidates)), club_id),
+            )
 
 
 def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) -> bool:
     if source_id == target_id:
         return False
+    # Não há confronto válido de um clube contra si; esta proteção impede que
+    # uma equivalência incorreta torne a tabela de partidas inconsistente.
     same_match = database.execute(
         "SELECT 1 FROM matches WHERE (home_club_id=? AND away_club_id=?) OR (home_club_id=? AND away_club_id=?) LIMIT 1",
         (source_id, target_id, target_id, source_id),
     ).fetchone()
     if same_match:
+        return False
+    source_state, target_state = database.execute(
+        "SELECT state FROM clubs WHERE id IN (?, ?) ORDER BY id", (source_id, target_id)
+    ).fetchall()
+    if source_state["state"] and target_state["state"] and source_state["state"] != target_state["state"]:
         return False
     database.execute("UPDATE matches SET home_club_id=? WHERE home_club_id=?", (target_id, source_id))
     database.execute("UPDATE matches SET away_club_id=? WHERE away_club_id=?", (target_id, source_id))
@@ -178,6 +212,11 @@ def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) ->
 
 
 def _remove_duplicate_matches(database: sqlite3.Connection) -> int:
+    """Remove cópias da mesma partida criadas antes da identidade canônica.
+
+    ESPN é preferida quando disponível, pois traz o horário e metadados mais
+    completos; caso contrário, preservamos o menor identificador estável.
+    """
     rows = database.execute(
         """SELECT external_id, competition, substr(played_at, 1, 10) AS game_date,
                   home_club_id, away_club_id, home_goals, away_goals
@@ -197,8 +236,12 @@ def _remove_duplicate_matches(database: sqlite3.Connection) -> int:
 
 
 def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
-    """Consolida apenas aliases explicitamente verificados; homônimos ficam separados."""
-    club_rows = database.execute("SELECT id, name, country FROM clubs ORDER BY id").fetchall()
+    """Consolida aliases conhecidos e prepara o banco para novas fontes.
+
+    A rotina é idempotente e conservadora: somente aliases explicitamente
+    registrados são unidos. Homônimos permanecem separados por padrão.
+    """
+    club_rows = database.execute("SELECT id, name, country, state FROM clubs ORDER BY id").fetchall()
     by_name = {str(row["name"]): row for row in club_rows}
     merges: list[tuple[int, int]] = []
     for row in club_rows:
@@ -222,6 +265,20 @@ def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
     return merged, _remove_duplicate_matches(database)
 
 
+def identity_candidates(database: sqlite3.Connection) -> list[dict[str, object]]:
+    """Lista nomes parecidos para revisão humana; nunca faz fusão automática."""
+    suffixes = {"ac", "ad", "aa", "ca", "cr", "ec", "fc", "sc", "se", "clube", "esporte", "esportes", "futebol"}
+    groups: dict[tuple[str, str, str], list[str]] = defaultdict(list)
+    for row in database.execute("SELECT name, country, state FROM clubs WHERE country IN ('Brasil', 'Brazil')"):
+        tokens = [token for token in alias_key(str(row["name"])).split() if token not in suffixes]
+        if tokens:
+            groups[("BR", str(row["state"] or "?"), " ".join(tokens))].append(str(row["name"]))
+    return [
+        {"state": state, "key": key, "clubs": sorted(names)}
+        for (_, state, key), names in groups.items() if len(set(names)) > 1
+    ]
+
+
 def _home_advantage(match: dict[str, str]) -> float:
     if bool(match.get("neutral_site")) or is_neutral_event(match["external_id"]):
         return 0.0
@@ -241,8 +298,9 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
         raise ValueError(f"Competição fora do escopo do MVP: {competition}")
     played_at = match["played_at"]
     datetime.fromisoformat(played_at.replace("Z", "+00:00"))
-    home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"))
-    away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"))
+    inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(competition)
+    home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"), match.get("home_state") or inferred_state)
+    away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"), match.get("away_state") or inferred_state)
     matchday = int(match["matchday"]) if match.get("matchday") else None
     home_advantage = _home_advantage(match)
     neutral_site = int(home_advantage == 0)
@@ -278,8 +336,9 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
     if replace:
         database.execute("DELETE FROM fixtures WHERE competition='Série A'")
     for fixture in fixtures:
-        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"))
-        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"))
+        inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(fixture["competition"])
+        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"), fixture.get("home_state") or inferred_state)
+        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"), fixture.get("away_state") or inferred_state)
         home_advantage = _home_advantage(fixture)
         neutral_site = int(home_advantage == 0)
         database.execute(
@@ -463,3 +522,4 @@ def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> li
                         "volatility": adjusted.volatility, "period_date": reference, "last_tracked_at": row["updated_at"],
                         "days_without_tracking": days_without_tracking, "eligible": not reasons, "ineligibility_reasons": reasons})
     return sorted(ranking, key=lambda row: (-row["rating"], row["rd"], row["name"]))
+
