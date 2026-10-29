@@ -4,7 +4,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from .database import connect, initialise, latest_ranking, process_pending, rebuild, store_match
+from .database import connect, identity_candidates, initialise, latest_ranking, process_pending, rebuild, store_match
 from .api_football import ApiFootballError, sync_season
 from .sofascore import SofascoreError, sync_season as sync_sofascore_season
 from .football_data import FootballDataError, sync_season as sync_football_data_season
@@ -14,7 +14,7 @@ from .coverage_report import coverage_rows, format_report
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="glicko-br")
-    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "sync-espn", "process", "rebuild", "ranking", "coverage"))
+    parser.add_argument("command", choices=("init", "ingest", "sync-api-football", "sync-sofascore", "sync-football-data", "sync-espn", "process", "rebuild", "ranking", "coverage", "identities"))
     parser.add_argument("--database", required=True)
     parser.add_argument("--csv")
     parser.add_argument("--season", type=int, help="Ano de início da temporada na API-Football")
@@ -72,9 +72,18 @@ def main() -> None:
             print(f"{position:>2}. {row['name']:<24} {row['rating']:7.1f}  RD {row['rd']:5.1f}")
     elif args.command == "coverage":
         print(format_report(coverage_rows(database, country=args.country, season=str(args.season) if args.season else None)))
+    elif args.command == "identities":
+        candidates = identity_candidates(database)
+        if not candidates:
+            print("Identidades: nenhum candidato brasileiro ambíguo encontrado.")
+        else:
+            print("Identidades: candidatos para revisão (não foram unidos automaticamente):")
+            for candidate in candidates:
+                print(f"  {candidate['state']} · {candidate['key']}: {' | '.join(candidate['clubs'])}")
     else:
         print(f"Banco inicializado em {database_path}")
 
 
 if __name__ == "__main__":
     main()
+
