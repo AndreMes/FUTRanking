@@ -26,8 +26,8 @@ def public_crest_url(url: str | None) -> str | None:
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
-        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest, home.primary_color AS home_color,
-                  away.name AS away_team, away.crest_url AS away_crest, away.primary_color AS away_color, m.home_goals, m.away_goals,
+        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
+                  away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
                   home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
                   away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
            FROM matches m
@@ -96,8 +96,8 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
     seasonal_draw_rates, historical_draw_rates = fixture_draw_rates(database)
     rows = database.execute(
-        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest,
-                  away.name AS away_team, away.crest_url AS away_crest
+        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest, home.primary_color AS home_color,
+                  away.name AS away_team, away.crest_url AS away_crest, away.primary_color AS away_color
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
            WHERE NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
            ORDER BY f.scheduled_at""",
@@ -218,6 +218,14 @@ def club_countries(database) -> dict[str, str]:
     return countries
 
 
+def club_states(database) -> dict[str, str]:
+    return {
+        row["name"]: row["state"] for row in database.execute(
+            "SELECT name, state FROM clubs WHERE state IS NOT NULL AND state <> ''"
+        )
+    }
+
+
 def exported_data_health(database) -> list[dict[str, object]]:
     """Resume a cobertura efetivamente persistida, por competição.
 
@@ -252,10 +260,13 @@ def exported_data_health(database) -> list[dict[str, object]]:
 
 
 def data_sources_for(competition: str) -> list[dict[str, str]]:
-    """Proveniência pública exibida junto da competição em Dados."""
+    """Proveniência pública apresentada ao lado da competição em Dados."""
     espn = {item.name: item.espn_slug for item in ESPN_COMPETITIONS}
     if competition == "Série C":
-        return [{"period": "2016–2025", "source": "ESPN", "url": "https://www.espn.com/soccer/scoreboard/_/league/bra.3"}, {"period": "2026–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-c-2026/77984"}]
+        return [
+            {"period": "2016–2025", "source": "ESPN", "url": "https://www.espn.com/soccer/scoreboard/_/league/bra.3"},
+            {"period": "2026–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-c-2026/77984"},
+        ]
     if competition == "Série D":
         return [{"period": "2016–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-d-2026/77985"}]
     state_sources = {
@@ -357,6 +368,7 @@ def main() -> None:
     matches = exported_matches(database)
     divisions = current_divisions(database)
     countries = club_countries(database)
+    states = club_states(database)
     teams = []
     excluded_teams = []
     for row in ranking:
@@ -371,6 +383,7 @@ def main() -> None:
             "performance": team_performance(matches, name),
             "divisions": sorted(divisions.get(name, set())),
             "country": countries.get(name, "País não informado"),
+            "state": states.get(name),
         }
         if row["eligible"]:
             team["position"] = len(teams) + 1
@@ -404,3 +417,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
