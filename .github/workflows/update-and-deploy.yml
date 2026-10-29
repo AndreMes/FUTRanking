@@ -47,12 +47,22 @@ jobs:
           fi
       - name: Montar ranking atualizado
         run: |
+          set -euo pipefail
           export PYTHONPATH=src
           full=()
           if [ "$(date -u +%d)" = "01" ]; then full=(--full); fi
+          started=$(date +%s)
+          echo "[workflow] sincronização: início $(date -Is)"
           python -m glicko_br.sync_workflow --database data/rankings.sqlite3 --watermark data/last-sync.txt "${full[@]}"
+          echo "[workflow] sincronização: concluída em $(( $(date +%s) - started ))s"
+          started=$(date +%s)
+          echo "[workflow] recálculo de ratings: início $(date -Is)"
           python -m glicko_br.cli process --database data/rankings.sqlite3
+          echo "[workflow] recálculo de ratings: concluído em $(( $(date +%s) - started ))s"
+          started=$(date +%s)
+          echo "[workflow] exportação do site: início $(date -Is)"
           python -m glicko_br.export_site_data --database data/rankings.sqlite3 --output dist/data/ranking.json
+          echo "[workflow] exportação do site: concluída em $(( $(date +%s) - started ))s"
       - name: Diagnóstico interno de cobertura
         run: |
           export PYTHONPATH=src
