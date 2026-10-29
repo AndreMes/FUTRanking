@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, expected_score, update
 from .competitions import COMPETITION_NAMES
+from .club_identity import alias_key, canonical_name
 from .neutral_sites import is_neutral_event
 
 COMPETITIONS = COMPETITION_NAMES
@@ -32,6 +33,10 @@ SCHEMA = f"""
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clubs (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, primary_color TEXT
+);
+CREATE TABLE IF NOT EXISTS club_aliases (
+  alias_key TEXT NOT NULL, country_key TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
+  PRIMARY KEY(alias_key, country_key)
 );
 CREATE TABLE IF NOT EXISTS matches {MATCHES_TABLE[MATCHES_TABLE.index('('):]}
 CREATE TABLE IF NOT EXISTS rating_snapshots (
@@ -93,17 +98,48 @@ def initialise(database: sqlite3.Connection) -> None:
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    reconcile_club_identities(database)
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
 
 
+def _register_alias(database: sqlite3.Connection, alias: str, country: str | None, club_id: int) -> None:
+    key = alias_key(alias)
+    country_key = _country_key(country) or ""
+    existing = database.execute(
+        "SELECT club_id FROM club_aliases WHERE alias_key=? AND country_key=?", (key, country_key)
+    ).fetchone()
+    if existing is None:
+        database.execute(
+            "INSERT INTO club_aliases(alias_key, country_key, club_id) VALUES (?, ?, ?)",
+            (key, country_key, club_id),
+        )
+
+
+def register_club_alias(database: sqlite3.Connection, alias: str, country: str | None, club_id: int) -> None:
+    """Registra uma equivalência confirmada por uma partida conciliada."""
+    _register_alias(database, alias, country, club_id)
+
+
 def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None) -> int:
-    database.execute("INSERT OR IGNORE INTO clubs(name) VALUES (?)", (name.strip(),))
+    country_key = _country_key(country)
+    key = alias_key(name)
+    alias = database.execute(
+        "SELECT club_id FROM club_aliases WHERE alias_key=? AND country_key=?", (key, country_key or "")
+    ).fetchone()
+    target_name = canonical_name(name, country_key)
+    if alias:
+        club_id = int(alias["club_id"])
+    else:
+        database.execute("INSERT OR IGNORE INTO clubs(name) VALUES (?)", (target_name,))
+        club_id = int(database.execute("SELECT id FROM clubs WHERE name=?", (target_name,)).fetchone()[0])
+        _register_alias(database, target_name, country, club_id)
+        _register_alias(database, name, country, club_id)
     if crest_url:
-        database.execute("UPDATE clubs SET crest_url=? WHERE name=?", (crest_url, name.strip()))
+        database.execute("UPDATE clubs SET crest_url=? WHERE id=?", (crest_url, club_id))
     if country:
-        database.execute("UPDATE clubs SET country=? WHERE name=?", (country, name.strip()))
-    return database.execute("SELECT id FROM clubs WHERE name=?", (name.strip(),)).fetchone()[0]
+        database.execute("UPDATE clubs SET country=? WHERE id=?", (country, club_id))
+    return club_id
 
 
 COUNTRY_KEYS = {
@@ -116,6 +152,74 @@ COUNTRY_KEYS = {
 
 def _country_key(country: str | None) -> str | None:
     return COUNTRY_KEYS.get((country or "").strip().lower())
+
+
+def _clear_rating_rebuild_state(database: sqlite3.Connection) -> None:
+    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "rating_model", "model_evaluations"):
+        database.execute(f"DELETE FROM {table}")
+
+
+def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) -> bool:
+    if source_id == target_id:
+        return False
+    same_match = database.execute(
+        "SELECT 1 FROM matches WHERE (home_club_id=? AND away_club_id=?) OR (home_club_id=? AND away_club_id=?) LIMIT 1",
+        (source_id, target_id, target_id, source_id),
+    ).fetchone()
+    if same_match:
+        return False
+    database.execute("UPDATE matches SET home_club_id=? WHERE home_club_id=?", (target_id, source_id))
+    database.execute("UPDATE matches SET away_club_id=? WHERE away_club_id=?", (target_id, source_id))
+    database.execute("UPDATE fixtures SET home_club_id=? WHERE home_club_id=?", (target_id, source_id))
+    database.execute("UPDATE fixtures SET away_club_id=? WHERE away_club_id=?", (target_id, source_id))
+    database.execute("UPDATE club_aliases SET club_id=? WHERE club_id=?", (target_id, source_id))
+    database.execute("DELETE FROM clubs WHERE id=?", (source_id,))
+    return True
+
+
+def _remove_duplicate_matches(database: sqlite3.Connection) -> int:
+    rows = database.execute(
+        """SELECT external_id, competition, substr(played_at, 1, 10) AS game_date,
+                  home_club_id, away_club_id, home_goals, away_goals
+           FROM matches ORDER BY CASE WHEN external_id LIKE 'espn:%' THEN 0 ELSE 1 END, external_id"""
+    ).fetchall()
+    seen: set[tuple[object, ...]] = set()
+    duplicate_ids: list[str] = []
+    for row in rows:
+        key = tuple(row[column] for column in ("competition", "game_date", "home_club_id", "away_club_id", "home_goals", "away_goals"))
+        if key in seen:
+            duplicate_ids.append(str(row["external_id"]))
+        else:
+            seen.add(key)
+    for external_id in duplicate_ids:
+        database.execute("DELETE FROM matches WHERE external_id=?", (external_id,))
+    return len(duplicate_ids)
+
+
+def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
+    """Consolida apenas aliases explicitamente verificados; homônimos ficam separados."""
+    club_rows = database.execute("SELECT id, name, country FROM clubs ORDER BY id").fetchall()
+    by_name = {str(row["name"]): row for row in club_rows}
+    merges: list[tuple[int, int]] = []
+    for row in club_rows:
+        target_name = canonical_name(str(row["name"]), _country_key(row["country"]))
+        target = by_name.get(target_name)
+        if target and int(target["id"]) != int(row["id"]):
+            merges.append((int(row["id"]), int(target["id"])))
+    if not merges:
+        for row in club_rows:
+            _register_alias(database, str(row["name"]), row["country"], int(row["id"]))
+        return 0, 0
+    _clear_rating_rebuild_state(database)
+    merged = 0
+    for source_id, target_id in merges:
+        source_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (source_id,)).fetchone()
+        target_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (target_id,)).fetchone()
+        if source_exists and target_exists and _merge_club(database, source_id, target_id):
+            merged += 1
+    for row in database.execute("SELECT id, name, country FROM clubs"):
+        _register_alias(database, str(row["name"]), row["country"], int(row["id"]))
+    return merged, _remove_duplicate_matches(database)
 
 
 def _home_advantage(match: dict[str, str]) -> float:
