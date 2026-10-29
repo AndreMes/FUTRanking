@@ -18,7 +18,7 @@ GSA_STATE_BOOTSTRAP_VERSION = "global-sports-archive-state-leagues-2016-v1"
 
 def reset_match_data(database) -> None:
     """Remove a carga anterior dentro da transação de migração ESPN."""
-    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "clubs", "rating_model", "model_evaluations"):
+    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "club_aliases", "clubs", "rating_model", "model_evaluations"):
         database.execute(f"DELETE FROM {table}")
 
 
