@@ -1,6 +1,8 @@
 from glicko_br.database import connect, initialise, store_match
 from glicko_br.global_sports_archive import (
     BY_NAME,
+    STATE_COMPETITION_NAMES,
+    _season_urls,
     _calendar_rounds,
     _existing_equivalent_id,
     _match_rows,
@@ -47,6 +49,23 @@ def test_gsa_calendar_reads_public_gameweeks():
         ("Regular Season", "77984", "138513_1"),
         ("Regular Season", "77984", "138513_2"),
     ]
+
+def test_gsa_season_catalog_accepts_sponsor_renames():
+    html = """
+    <a href="https://globalsportsarchive.com/en/soccer/competition/paulistao-itaipava-2016/11212">2016</a>
+    <a href="https://globalsportsarchive.com/en/soccer/competition/paulistao-casas-bahia-2026/78189">2026</a>
+    """
+    assert _season_urls(html, BY_NAME["Campeonato Paulista"]) == {
+        2016: "https://globalsportsarchive.com/en/soccer/competition/paulistao-itaipava-2016/11212",
+        2026: "https://globalsportsarchive.com/en/soccer/competition/paulistao-casas-bahia-2026/78189",
+    }
+
+def test_state_competition_catalog_contains_requested_bridges():
+    assert set(STATE_COMPETITION_NAMES) == {
+        "Campeonato Paulista", "Paulista A2", "Campeonato Carioca", "Campeonato Mineiro", "Campeonato Gaúcho",
+        "Campeonato Paranaense", "Campeonato Baiano", "Campeonato Pernambucano", "Campeonato Cearense",
+        "Campeonato Goiano", "Campeonato Catarinense",
+    }
 
 def test_gsa_sync_walks_all_gameweeks_on_full_load():
     competition = BY_NAME["Série C"]
