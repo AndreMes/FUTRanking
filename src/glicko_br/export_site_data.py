@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .database import MAX_INACTIVITY_DAYS, MAX_RANKING_RD, connect, initialise, latest_ranking
+from .database import MAX_INACTIVITY_DAYS, MAX_RANKING_RD, connect, identity_candidates, initialise, latest_ranking
 from .glicko2 import Rating
 from .database import HOME_ADVANTAGE
 from .simulation import outcome_probabilities, simulate_season
@@ -226,6 +226,26 @@ def club_states(database) -> dict[str, str]:
     }
 
 
+def exported_identity_audit(database) -> list[dict[str, object]]:
+    """Pendências de identidade para a fila administrativa local."""
+    output = []
+    for candidate in identity_candidates(database):
+        clubs = []
+        for name in candidate["clubs"]:
+            row = database.execute(
+                """SELECT c.name, c.country, c.state, c.crest_url, COUNT(m.external_id) AS games
+                   FROM clubs c LEFT JOIN matches m ON c.id IN (m.home_club_id, m.away_club_id)
+                   WHERE c.name=? GROUP BY c.id""",
+                (name,),
+            ).fetchone()
+            if row:
+                club = dict(row)
+                club["crest_url"] = public_crest_url(club.get("crest_url"))
+                clubs.append(club)
+        output.append({**candidate, "clubs": clubs})
+    return output
+
+
 def exported_data_health(database) -> list[dict[str, object]]:
     """Resume a cobertura efetivamente persistida, por competição.
 
@@ -407,6 +427,7 @@ def main() -> None:
         "matches": matches,
         "fixtures": fixtures,
         "data_health": health,
+        "identity_audit": exported_identity_audit(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
