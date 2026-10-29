@@ -16,7 +16,7 @@ from unicodedata import normalize
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .database import store_match, store_source_payload
+from .database import register_club_alias, store_match, store_source_payload
 
 BASE_URL = "https://globalsportsarchive.com"
 REQUEST_INTERVAL_SECONDS = 1.0
@@ -251,6 +251,19 @@ def _existing_equivalent_id(database, row: dict[str, str]) -> str | None:
     return None
 
 
+def _learn_aliases_from_equivalent_match(database, row: dict[str, str], external_id: str) -> None:
+    """Aprende um alias apenas quando uma partida coincide entre fontes."""
+    existing = database.execute(
+        """SELECT home.id AS home_id, away.id AS away_id
+           FROM matches m JOIN clubs home ON home.id=m.home_club_id
+           JOIN clubs away ON away.id=m.away_club_id WHERE m.external_id=?""",
+        (external_id,),
+    ).fetchone()
+    if existing:
+        register_club_alias(database, row["home_team"], row.get("home_country"), int(existing["home_id"]))
+        register_club_alias(database, row["away_team"], row.get("away_country"), int(existing["away_id"]))
+
+
 def _calendar_rounds(html: str) -> list[tuple[str, str, str]]:
     """Retorna fase, competição e sub-rodadas conhecidas pelo seletor público."""
     stages = _stage_positions(html)
@@ -303,6 +316,7 @@ def sync_season(database, competition: GsaCompetition, season: int, *, client: G
     for row in rows.values():
         existing_id = _existing_equivalent_id(database, row)
         if existing_id:
+            _learn_aliases_from_equivalent_match(database, row, existing_id)
             row["external_id"] = existing_id
             # A Série C já tem jogos ESPN com horário preciso: não o trocamos
             # por um horário aproximado da fonte histórica.
