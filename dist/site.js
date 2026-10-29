@@ -305,7 +305,7 @@ function dataHealth(data) {
   el('#content').innerHTML = '<p>Visão do acervo usado pelo ranking. A coluna <strong>Fonte</strong> identifica a origem de cada competição; a Série C separa seu histórico por período.</p><section class="panel health-panel"><div class="row health-row source-health-row table-head"><span>Competição</span><span>Resultados</span><span>Primeiro jogo</span><span>Último resultado</span><span>Fixtures</span><span>Fonte</span></div>' + (tableRows || '<p class="empty-list">Ainda não há cobertura publicada.</p>') + '</section>';
 }
 const sourceHealthStyle = document.createElement('style');
-sourceHealthStyle.textContent = '.source-health-row{grid-template-columns:minmax(150px,1.25fr) 72px minmax(110px,.85fr) minmax(110px,.85fr) 62px minmax(160px,1.15fr)}.source-links a{color:#075c42;font-weight:800;text-decoration:none}.source-links a:hover{text-decoration:underline}.source-links small{color:#5b6f68;font-weight:600}@media(max-width:700px){.health-panel{overflow-x:auto}.source-health-row{min-width:760px;grid-template-columns:175px 72px 120px 120px 62px 190px}}';
+sourceHealthStyle.textContent = '.health-panel:has(.source-health-row){overflow-x:auto}.source-health-row{min-width:1010px;grid-template-columns:210px 105px 170px 180px 75px 210px}.source-links a{color:#075c42;font-weight:800;text-decoration:none}.source-links a:hover{text-decoration:underline}.source-links small{color:#5b6f68;font-weight:600}@media(max-width:700px){.source-health-row{min-width:1010px}}';
 document.head.append(sourceHealthStyle);
 const percent = value => value == null ? '—' : `${(Number(value) * 100).toFixed(1)}%`;
 
