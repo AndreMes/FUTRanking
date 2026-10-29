@@ -110,12 +110,17 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
             (row["competition"], season), historical_draw_rates.get(row["competition"], DEFAULT_DRAW_RATE)
         )
         home_chance, draw_chance, away_chance = outcome_probabilities(home, away, home_advantage, draw_rate)
+        # Ao exibir uma casa decimal, fechamos a terceira ponta por diferença
+        # para o mercado 1×2 continuar somando exatamente 100,0%.
+        home_percentage = round(home_chance * 100, 1)
+        draw_percentage = round(draw_chance * 100, 1)
+        away_percentage = round(100.0 - home_percentage - draw_percentage, 1)
         fixture = dict(row)
         fixture["home_crest"] = public_crest_url(fixture.get("home_crest"))
         fixture["away_crest"] = public_crest_url(fixture.get("away_crest"))
         fixtures.append({**fixture, "neutral_site": neutral_site, "home_advantage": home_advantage, "home_rating": home.rating, "away_rating": away.rating,
-                         "home_favoritism": round(home_chance * 100, 1), "draw_probability": round(draw_chance * 100, 1),
-                         "away_favoritism": round(away_chance * 100, 1), "draw_rate_reference": round(draw_rate * 100, 1)})
+                         "home_favoritism": home_percentage, "draw_probability": draw_percentage,
+                         "away_favoritism": away_percentage, "draw_rate_reference": round(draw_rate * 100, 1)})
     return fixtures
 
 
