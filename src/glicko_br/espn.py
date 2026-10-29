@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from time import sleep
+from time import monotonic, sleep
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -13,6 +13,8 @@ from .database import replace_fixtures, store_match, store_source_payload
 BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 MAX_REQUEST_ATTEMPTS = 3
 RETRYABLE_HTTP_STATUS = frozenset({429, 500, 502, 503, 504})
+# Ritmo deliberadamente conservador para não concentrar a coleta diária no provedor.
+REQUEST_INTERVAL_SECONDS = 0.35
 LEAGUES = {competition.espn_slug: competition.name for competition in ESPN_COMPETITIONS}
 COUNTRY_BY_LEAGUE_PREFIX = {
     "arg": "Argentina", "bol": "Bolívia", "bra": "Brasil", "chi": "Chile",
@@ -28,6 +30,17 @@ class EspnError(RuntimeError):
 class EspnClient:
     def __init__(self) -> None:
         self.team_countries: dict[str, str | None] = {}
+        self.request_count = 0
+        self._last_request_at: float | None = None
+
+    def _reserve_request_slot(self) -> None:
+        """Aplica um intervalo mínimo entre quaisquer chamadas à ESPN."""
+        if self._last_request_at is not None:
+            remaining = REQUEST_INTERVAL_SECONDS - (monotonic() - self._last_request_at)
+            if remaining > 0:
+                sleep(remaining)
+        self._last_request_at = monotonic()
+        self.request_count += 1
 
     def get_scoreboard(self, league: str, *, dates: str) -> tuple[dict, str]:
         query = urlencode({"dates": dates, "limit": 1000})
@@ -35,6 +48,7 @@ class EspnClient:
         request = Request(f"{BASE_URL}{request_path}", headers={"Accept": "application/json", "User-Agent": "FUTRanking/1.0"})
         for attempt in range(MAX_REQUEST_ATTEMPTS):
             try:
+                self._reserve_request_slot()
                 with urlopen(request, timeout=30) as response:
                     raw = response.read().decode("utf-8")
                 break
@@ -63,6 +77,7 @@ class EspnClient:
         request_path = f"/{league}/teams/{team_id}"
         try:
             request = Request(f"{BASE_URL}{request_path}", headers={"Accept": "application/json", "User-Agent": "FUTRanking/1.0"})
+            self._reserve_request_slot()
             with urlopen(request, timeout=15) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             team = payload.get("team") or {}
