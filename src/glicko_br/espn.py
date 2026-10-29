@@ -187,12 +187,23 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
     }
 
 
-def _enrich_countries(client: EspnClient, league: str, item: dict[str, str]) -> None:
+def _stored_club_country(database, name: str) -> str | None:
+    """Retorna a nacionalidade já consolidada no SQLite, se houver."""
+    row = database.execute(
+        "SELECT country FROM clubs WHERE name=? AND country IS NOT NULL AND country <> ''",
+        (name.strip(),),
+    ).fetchone()
+    return str(row["country"]) if row else None
+
+
+def _enrich_countries(database, client: EspnClient, league: str, item: dict[str, str]) -> None:
+    """Consulta a ESPN somente para clubes sem país persistido localmente."""
     resolver = getattr(client, "get_team_country", None)
-    if resolver is None:
-        return
-    item["home_country"] = resolver(league, item.get("home_espn_team_id", ""))
-    item["away_country"] = resolver(league, item.get("away_espn_team_id", ""))
+    for side in ("home", "away"):
+        country = _stored_club_country(database, item[f"{side}_team"])
+        if country is None and resolver is not None:
+            country = resolver(league, item.get(f"{side}_espn_team_id", ""))
+        item[f"{side}_country"] = country
 
 
 def sync_period(database, period: str, *, leagues: dict[str, str] = LEAGUES, client: EspnClient | None = None) -> int:
@@ -212,13 +223,13 @@ def sync_period(database, period: str, *, leagues: dict[str, str] = LEAGUES, cli
         for event in payload["events"]:
             row = event_to_row(event, competition)
             if row is not None:
-                _enrich_countries(client, league, row)
+                _enrich_countries(database, client, league, row)
                 store_match(database, row)
                 imported += 1
             else:
                 fixture = event_to_fixture(event, competition)
                 if fixture is not None:
-                    _enrich_countries(client, league, fixture)
+                    _enrich_countries(database, client, league, fixture)
                     fixtures.append(fixture)
         replace_fixtures(database, fixtures, replace=False)
     return imported
