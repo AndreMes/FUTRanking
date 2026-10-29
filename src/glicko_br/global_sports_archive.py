@@ -12,11 +12,12 @@ from html import unescape
 import json
 import re
 from time import monotonic, sleep
-from unicodedata import normalize
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from .club_identity import provider_match_key
 from .database import register_club_alias, store_match, store_source_payload
+
 
 BASE_URL = "https://globalsportsarchive.com"
 REQUEST_INTERVAL_SECONDS = 1.0
@@ -61,14 +62,46 @@ class GlobalSportsArchiveClient:
         self._last_request_at: float | None = None
         self._cache: dict[str, str] = {}
 
-    def _wait(self) -> None:
+    def get(self, url: str) -> str:
+        if url in self._cache:
+            return self._cache[url]
         if self._last_request_at is not None:
             remaining = REQUEST_INTERVAL_SECONDS - (monotonic() - self._last_request_at)
             if remaining > 0:
                 sleep(remaining)
+        request = Request(url, headers={"Accept": "text/html", "User-Agent": "FUTRanking/1.0 (+https://andremes.github.io/FUTRanking/)"})
+        for attempt in range(MAX_REQUEST_ATTEMPTS):
+            try:
+                self._last_request_at = monotonic()
+                self.request_count += 1
+                with urlopen(request, timeout=30) as response:
+                    html = response.read().decode("utf-8")
+                break
+            except HTTPError as error:
+                if error.code not in RETRYABLE_HTTP_STATUS or attempt == MAX_REQUEST_ATTEMPTS - 1:
+                    raise GlobalSportsArchiveError(f"Global Sports Archive respondeu HTTP {error.code} para {url}") from error
+            except (URLError, TimeoutError, ConnectionResetError) as error:
+                if attempt == MAX_REQUEST_ATTEMPTS - 1:
+                    raise GlobalSportsArchiveError(f"Não foi possível acessar o Global Sports Archive: {getattr(error, 'reason', error)}") from error
+            sleep(2 ** attempt)
+        self._cache[url] = html
+        return html
 
-    def _request(self, request: Request, error_context: str) -> str:
-        self._wait()
+    def get_gameweek(self, *, competition_id: str, round_key: str, active_sub_round_key: str) -> str:
+        """Replica somente o POST público acionado pelo seletor de rodadas."""
+        from urllib.parse import urlencode
+
+        payload = urlencode({
+            "sport": "soccer", "roundKey": round_key, "activeSubRoundKey": active_sub_round_key,
+            "wid": "", "client_brand": "", "client_brand_version": "", "user_timezone": "America/Sao_Paulo",
+            "isActiveRound": "", "competitionId": competition_id,
+        }).encode("utf-8")
+        if self._last_request_at is not None:
+            remaining = REQUEST_INTERVAL_SECONDS - (monotonic() - self._last_request_at)
+            if remaining > 0:
+                sleep(remaining)
+        url = f"{BASE_URL}/en/widget/match_competition_round_gameweek"
+        request = Request(url, data=payload, headers={"Accept": "text/html", "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "FUTRanking/1.0 (+https://andremes.github.io/FUTRanking/)", "X-Requested-With": "XMLHttpRequest"})
         for attempt in range(MAX_REQUEST_ATTEMPTS):
             try:
                 self._last_request_at = monotonic()
@@ -77,64 +110,15 @@ class GlobalSportsArchiveClient:
                     return response.read().decode("utf-8")
             except HTTPError as error:
                 if error.code not in RETRYABLE_HTTP_STATUS or attempt == MAX_REQUEST_ATTEMPTS - 1:
-                    raise GlobalSportsArchiveError(
-                        f"Global Sports Archive respondeu HTTP {error.code} {error_context}."
-                    ) from error
+                    raise GlobalSportsArchiveError(f"Global Sports Archive respondeu HTTP {error.code} ao carregar a rodada {active_sub_round_key}.") from error
             except (URLError, TimeoutError, ConnectionResetError) as error:
                 if attempt == MAX_REQUEST_ATTEMPTS - 1:
-                    raise GlobalSportsArchiveError(
-                        f"Não foi possível acessar o Global Sports Archive: {getattr(error, 'reason', error)}"
-                    ) from error
+                    raise GlobalSportsArchiveError(f"Não foi possível carregar a rodada GSA: {getattr(error, 'reason', error)}") from error
             sleep(2 ** attempt)
-        raise AssertionError("tentativas GSA esgotadas sem erro")
-
-    def get(self, url: str) -> str:
-        if url not in self._cache:
-            request = Request(url, headers={
-                "Accept": "text/html",
-                "User-Agent": "FUTRanking/1.0 (+https://andremes.github.io/FUTRanking/)",
-            })
-            self._cache[url] = self._request(request, f"para {url}")
-        return self._cache[url]
-
-    def get_gameweek(self, *, competition_id: str, round_key: str, active_sub_round_key: str) -> str:
-        """Replica o POST público acionado pelo seletor de rodadas do site."""
-        from urllib.parse import urlencode
-
-        payload = urlencode({
-            "sport": "soccer",
-            "roundKey": round_key,
-            "activeSubRoundKey": active_sub_round_key,
-            "wid": "",
-            "client_brand": "",
-            "client_brand_version": "",
-            "user_timezone": "America/Sao_Paulo",
-            "isActiveRound": "",
-            "competitionId": competition_id,
-        }).encode("utf-8")
-        request = Request(
-            f"{BASE_URL}/en/widget/match_competition_round_gameweek",
-            data=payload,
-            headers={
-                "Accept": "text/html",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "FUTRanking/1.0 (+https://andremes.github.io/FUTRanking/)",
-                "X-Requested-With": "XMLHttpRequest",
-            },
-        )
-        return self._request(request, f"ao carregar a rodada {active_sub_round_key}")
 
 
 def _plain(value: str) -> str:
     return unescape(re.sub(r"<[^>]+>", " ", value)).replace("\xa0", " ").strip()
-
-
-def _canonical_team_name(name: str) -> str:
-    stripped = "".join(
-        char for char in normalize("NFKD", name.lower()) if not "\u0300" <= char <= "\u036f"
-    )
-    ignored = {"ac", "ad", "af", "associacao", "clube", "da", "de", "do", "ec", "esporte", "fc", "futebol", "saf", "sociedade"}
-    return " ".join(word for word in re.findall(r"[a-z0-9]+", stripped) if word not in ignored)
 
 
 def _crest_url(url: str) -> str:
@@ -145,9 +129,10 @@ def _crest_url(url: str) -> str:
 def _season_urls(html: str, competition: GsaCompetition) -> dict[int, str]:
     """Lê a cronologia da própria competição, inclusive nomes patrocinados.
 
-    O endereço muda quando a competição troca de patrocinador. A página de
-    cada torneio já lista sua cronologia; portanto não exigimos um *slug*
-    idêntico em todos os anos.
+    O endereço muda quando a competição troca de patrocinador (por exemplo,
+    Paulistão Itaipava para Paulistão Casas Bahia). A página de cada torneio
+    já lista a sua própria cronologia; portanto não devemos exigir que todos
+    os URLs preservem o mesmo *slug*.
     """
     return {
         int(year): f"{BASE_URL}/en/soccer/competition/{slug}-{year}/{identifier}"
@@ -160,10 +145,7 @@ def _season_urls(html: str, competition: GsaCompetition) -> dict[int, str]:
 
 
 def _stage_positions(html: str) -> list[tuple[int, str]]:
-    pattern = re.compile(
-        r"gsa-widget-match-competition-list__rounds-item__title[^>]*>(.*?)</div>",
-        re.IGNORECASE | re.DOTALL,
-    )
+    pattern = re.compile(r"gsa-widget-match-competition-list__rounds-item__title[^>]*>(.*?)</div>", re.IGNORECASE | re.DOTALL)
     return [(match.start(), _plain(match.group(1))) for match in pattern.finditer(html)]
 
 
@@ -173,39 +155,23 @@ def _stage_for(position: int, stages: list[tuple[int, str]]) -> str:
 
 
 def _match_rows(html: str, competition: str, *, default_stage: str = "") -> list[dict[str, str]]:
-    """Lê os cartões desktop e elimina a cópia mobile pelo identificador GSA."""
+    """Lê somente os cartões desktop, eliminando a cópia mobile pelo ID GSA."""
     stages = _stage_positions(html)
-    pattern = re.compile(
-        r'<a\b(?P<attributes>[^>]*\bgsa-match-rounds-v2__match\b[^>]*)>(?P<body>.*?)</a>',
-        re.IGNORECASE | re.DOTALL,
-    )
+    pattern = re.compile(r'<a\b(?P<attributes>[^>]*\bgsa-match-rounds-v2__match\b[^>]*)>(?P<body>.*?)</a>', re.IGNORECASE | re.DOTALL)
     rows: dict[str, dict[str, str]] = {}
     for match in pattern.finditer(html):
-        link = re.search(
-            r'href="https://globalsportsarchive\.com/en/soccer/match/(?P<date>20\d{2}-\d{2}-\d{2})/[^"]+/(?P<id>\d+)"',
-            match.group("attributes"),
-            re.IGNORECASE,
-        )
+        link = re.search(r'href="https://globalsportsarchive\.com/en/soccer/match/(?P<date>20\d{2}-\d{2}-\d{2})/[^"]+/(?P<id>\d+)"', match.group("attributes"), re.IGNORECASE)
         if not link:
             continue
         body = match.group("body")
-        teams = re.findall(
-            r'<img[^>]+src="(?P<crest>[^"]+)"[^>]+alt="logo of (?P<team>[^"]+)"',
-            body,
-            re.IGNORECASE,
-        )
-        score_block = re.search(
-            r"gsa-match-played[^>]*>(?P<score>.*?)</div>\s*</div>\s*</div>",
-            body,
-            re.IGNORECASE | re.DOTALL,
-        )
-        score = re.search(
-            r"(\d+)\s*:\s*(\d+)",
-            _plain(score_block.group("score")) if score_block else _plain(body),
-        )
+        teams = re.findall(r'<img[^>]+src="(?P<crest>[^"]+)"[^>]+alt="logo of (?P<team>[^"]+)"', body, re.IGNORECASE)
+        score_block = re.search(r"gsa-match-played[^>]*>(?P<score>.*?)</div>\s*</div>\s*</div>", body, re.IGNORECASE | re.DOTALL)
+        score_text = _plain(score_block.group("score")) if score_block else _plain(body)
+        score = re.search(r"(\d+)\s*:\s*(\d+)", score_text)
         if len(teams) < 2 or not score:
             continue
-        (home_crest, home), (away_crest, away) = teams[:2]
+        home_crest, home = teams[0]
+        away_crest, away = teams[1]
         # Alguns cartões históricos incompletos repetem o mesmo clube nos dois
         # lados. Não são partidas válidas e o banco também as rejeita.
         if home.strip().casefold() == away.strip().casefold():
@@ -213,8 +179,8 @@ def _match_rows(html: str, competition: str, *, default_stage: str = "") -> list
         match_id = link.group("id")
         rows[match_id] = {
             "external_id": f"gsa:{match_id}",
-            # O GSA histórico pode não trazer horário. Isso preserva a data e
-            # agrupa jogos do mesmo dia, sem inventar uma ordem entre eles.
+            # O GSA nem sempre publica o horário no cartão histórico. Meio-dia
+            # local preserva a data e deixa partidas do mesmo dia no mesmo grupo.
             "played_at": f"{link.group('date')}T12:00:00-03:00",
             "competition": competition,
             "matchday": "",
@@ -234,7 +200,11 @@ def _match_rows(html: str, competition: str, *, default_stage: str = "") -> list
 
 
 def _existing_equivalent_id(database, row: dict[str, str]) -> str | None:
-    """Reutiliza o ID ESPN da mesma partida, sem gerar cópia pela nova fonte."""
+    """Reutiliza o ID ESPN quando a mesma partida já existir no banco.
+
+    Isso permite à GSA completar a Série C corrente sem duplicar o legado da
+    ESPN, mesmo quando ela atualiza um placar posteriormente.
+    """
     candidates = database.execute(
         """SELECT m.external_id, home.name AS home_team, away.name AS away_team
            FROM matches m
@@ -243,16 +213,20 @@ def _existing_equivalent_id(database, row: dict[str, str]) -> str | None:
            WHERE m.competition=? AND substr(m.played_at, 1, 10)=?""",
         (row["competition"], row["played_at"][:10]),
     ).fetchall()
-    wanted = (_canonical_team_name(row["home_team"]), _canonical_team_name(row["away_team"]))
+    wanted = (provider_match_key(row["home_team"]), provider_match_key(row["away_team"]))
     for candidate in candidates:
-        actual = (_canonical_team_name(candidate["home_team"]), _canonical_team_name(candidate["away_team"]))
-        if wanted == actual:
+        if wanted == (provider_match_key(candidate["home_team"]), provider_match_key(candidate["away_team"])):
             return str(candidate["external_id"])
     return None
 
 
 def _learn_aliases_from_equivalent_match(database, row: dict[str, str], external_id: str) -> None:
-    """Aprende um alias apenas quando uma partida coincide entre fontes."""
+    """Liga nomes de fontes distintas somente quando a partida coincide.
+
+    Esta é uma evidência forte: mesma competição, mesma data e os dois clubes
+    já conciliados. Assim, clubes novos podem ganhar aliases sem aplicar uma
+    heurística arriscada a homônimos.
+    """
     existing = database.execute(
         """SELECT home.id AS home_id, away.id AS away_id
            FROM matches m JOIN clubs home ON home.id=m.home_club_id
@@ -265,9 +239,9 @@ def _learn_aliases_from_equivalent_match(database, row: dict[str, str], external
 
 
 def _calendar_rounds(html: str) -> list[tuple[str, str, str]]:
-    """Retorna fase, competição e sub-rodadas conhecidas pelo seletor público."""
+    """Retorna fase, competição e sub-rodadas que o seletor público conhece."""
     stages = _stage_positions(html)
-    pattern = re.compile(r'<div\s+class="gsa-comp-calendar\b(?P<attributes>[^>]*)>', re.IGNORECASE)
+    pattern = re.compile(r'<div\s+class="gsa-comp-calendar\b(?P<attributes>[^>]*)>', re.IGNORECASE | re.DOTALL)
     rounds: list[tuple[str, str, str]] = []
     for match in pattern.finditer(html):
         attrs = match.group("attributes")
@@ -281,45 +255,42 @@ def _calendar_rounds(html: str) -> list[tuple[str, str, str]]:
             continue
         stage = _stage_for(match.start(), stages)
         for key in keys:
+            round_key = str(key).split("_", 1)[0]
             rounds.append((stage, competition_id.group(1), str(key)))
     return rounds
 
 
 def sync_season(database, competition: GsaCompetition, season: int, *, client: GlobalSportsArchiveClient, full: bool = True) -> tuple[int, int]:
-    urls = _season_urls(client.get(competition.seed_url), competition)
+    catalog_html = client.get(competition.seed_url)
+    urls = _season_urls(catalog_html, competition)
     if season not in urls:
         raise GlobalSportsArchiveError(f"O Global Sports Archive não listou {competition.name} {season}.")
     url = urls[season]
     page = client.get(url)
     rows = {row["external_id"]: row for row in _match_rows(page, competition.name)}
+    # A página inicial inclui confrontos eliminatórios, mas as rodadas de liga
+    # são paginadas pelo próprio seletor público. No cron diário, rechecamos só
+    # as duas últimas rodadas de cada fase; a carga anual percorre todas.
     calendars: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
     for stage, competition_id, key in _calendar_rounds(page):
         calendars.setdefault((stage, competition_id), []).append((stage, competition_id, key))
     for calendar in calendars.values():
-        # A carga anual percorre todas as rodadas. Diariamente, somente as duas
-        # mais recentes de cada fase são revistas.
-        for stage, competition_id, key in (calendar if full else calendar[-2:]):
-            fragment = client.get_gameweek(
-                competition_id=competition_id,
-                round_key=key.split("_", 1)[0],
-                active_sub_round_key=key,
-            )
-            rows.update({
-                row["external_id"]: row
-                for row in _match_rows(fragment, competition.name, default_stage=stage)
-            })
+        selected = calendar if full else calendar[-2:]
+        for stage, competition_id, key in selected:
+            fragment = client.get_gameweek(competition_id=competition_id, round_key=key.split("_", 1)[0], active_sub_round_key=key)
+            rows.update({row["external_id"]: row for row in _match_rows(fragment, competition.name, default_stage=stage)})
+    rows = list(rows.values())
     if not rows:
-        raise GlobalSportsArchiveError(
-            f"O Global Sports Archive não retornou partidas concluídas para {competition.name} {season}."
-        )
+        raise GlobalSportsArchiveError(f"O Global Sports Archive não retornou partidas concluídas para {competition.name} {season}.")
     reused = 0
-    for row in rows.values():
+    for row in rows:
         existing_id = _existing_equivalent_id(database, row)
         if existing_id:
             _learn_aliases_from_equivalent_match(database, row, existing_id)
             row["external_id"] = existing_id
-            # A Série C já tem jogos ESPN com horário preciso: não o trocamos
-            # por um horário aproximado da fonte histórica.
+            # A Série C já possui partidas antigas da ESPN, com horário exato.
+            # O GSA histórico nem sempre o informa; preservá-lo evita alterar a
+            # ordem cronológica que já alimentou o rating.
             existing_match = database.execute(
                 "SELECT played_at FROM matches WHERE external_id=?", (existing_id,)
             ).fetchone()
@@ -327,22 +298,15 @@ def sync_season(database, competition: GsaCompetition, season: int, *, client: G
                 row["played_at"] = str(existing_match["played_at"])
             reused += 1
         store_match(database, row)
-    store_source_payload(
-        database,
-        "global-sports-archive",
-        url,
-        json.dumps(
-            {"competition": competition.name, "season": season, "matches": len(rows), "reused_existing_ids": reused},
-            separators=(",", ":"),
-        ),
-    )
+    store_source_payload(database, "global-sports-archive", url, json.dumps({"competition": competition.name, "season": season, "matches": len(rows), "reused_existing_ids": reused}, separators=(",", ":")))
     return len(rows), reused
 
 
 def bootstrap_serie_d(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Carga única de toda a Série D; o marcador só é salvo após sucesso."""
     today = today or date.today()
-    total = 0
     competition = BY_NAME["Série D"]
+    total = 0
     for season in range(HISTORY_START_YEAR, today.year + 1):
         started = monotonic()
         requests_before = client.request_count
@@ -356,7 +320,13 @@ def bootstrap_serie_d(database, *, client: GlobalSportsArchiveClient, today: dat
 
 
 def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
-    """Importa todos os estaduais rastreados desde o início da amostra."""
+    """Importa todos os estaduais rastreados desde o início da amostra.
+
+    Cada página de competição resolve sua cronologia localmente, de modo que a
+    carga suporta patrocínios diferentes em temporadas antigas. A marca de
+    conclusão é gravada pelo workflow somente após a transação inteira ter
+    terminado; um erro, portanto, não publica carga parcial.
+    """
     today = today or date.today()
     total = 0
     for name in STATE_COMPETITION_NAMES:
@@ -384,6 +354,7 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
 
 
 def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | None = None, full: bool = False) -> tuple[int, int]:
+    """Atualiza as competições em calendário, sem consultar estaduais inativos."""
     today = today or date.today()
     total = reused = 0
     # Os estaduais selecionados ocorrem no primeiro semestre. Fora dele, a
@@ -404,3 +375,4 @@ def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | N
             f"{monotonic() - started:.1f}s."
         )
     return total, reused
+
