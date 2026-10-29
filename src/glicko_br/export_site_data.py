@@ -14,6 +14,7 @@ from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
 from .competitions import DOMESTIC_COMPETITION_COUNTRIES
 from .model_selection import EVALUATION_VERSION
+from .crest_colors import backfill_fixture_colors
 
 
 def public_crest_url(url: str | None) -> str | None:
@@ -24,8 +25,8 @@ def public_crest_url(url: str | None) -> str | None:
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
-        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
-                  away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
+        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest, home.primary_color AS home_color,
+                  away.name AS away_team, away.crest_url AS away_crest, away.primary_color AS away_color, m.home_goals, m.away_goals,
                   home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
                   away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
            FROM matches m
@@ -315,6 +316,10 @@ def main() -> None:
     args = parser.parse_args()
     database = connect(args.database)
     initialise(database)
+    colors_updated = backfill_fixture_colors(database)
+    if colors_updated:
+        database.commit()
+        print(f"{colors_updated} cores de escudo armazenadas para os fixtures.")
     ranking = latest_ranking(database)
     if not ranking:
         parser.error("O banco ainda não possui um ranking para exportar.")
