@@ -53,10 +53,10 @@ def main() -> None:
                 store_source_payload(database, "espn-bootstrap", ESPN_BOOTSTRAP_VERSION, "{}")
                 print(f'Carga histórica ESPN concluída: {total} resultados.')
             else:
-                # Em rotina normal, revisa somente ontem e hoje. Se algum ciclo
-                # falhar, o marcador persistido faz a próxima execução recuperar
-                # automaticamente o período desde o último sucesso.
-                start = min(last_sync, today - timedelta(days=1)) if last_sync else today - timedelta(days=1)
+                # Em rotina normal, retoma o último sucesso com um dia extra de
+                # segurança. Se algum ciclo falhar, o marcador persistido faz a
+                # próxima execução recuperar automaticamente o período perdido.
+                start = min(last_sync - timedelta(days=1), today - timedelta(days=1)) if last_sync else today - timedelta(days=1)
                 for offset in range((today - start).days + 1):
                     checked = start + timedelta(days=offset)
                     count = sync_period(database, checked.strftime('%Y%m%d'), client=client)
