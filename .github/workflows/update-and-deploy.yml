@@ -67,6 +67,7 @@ jobs:
         run: |
           export PYTHONPATH=src
           python -m glicko_br.cli coverage --database data/rankings.sqlite3 --season "$(date -u +%Y)"
+          python -m glicko_br.cli identities --database data/rankings.sqlite3
       - name: Salvar banco para a próxima execução
         shell: bash
         run: |
@@ -92,3 +93,4 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
