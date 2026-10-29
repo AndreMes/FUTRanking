@@ -198,6 +198,13 @@ def _stored_club_country(database, name: str) -> str | None:
 
 def _enrich_countries(database, client: EspnClient, league: str, item: dict[str, str]) -> None:
     """Consulta a ESPN somente para clubes sem país persistido localmente."""
+    # Ligas nacionais já determinam o país do clube: não buscamos um perfil por
+    # equipe durante a carga, preservando chamadas para novas competições.
+    league_country = COUNTRY_BY_LEAGUE_PREFIX.get(league.split(".", 1)[0])
+    if league_country:
+        item["home_country"] = league_country
+        item["away_country"] = league_country
+        return
     resolver = getattr(client, "get_team_country", None)
     for side in ("home", "away"):
         country = _stored_club_country(database, item[f"{side}_team"])
