@@ -40,7 +40,7 @@ def test_espn_event_upserts_by_stable_event_id_and_final_beats_fixture():
     assert matches[0]["external_id"] == "espn:123"
 
 
-def test_espn_reuses_persisted_club_country_before_requesting_profile():
+def test_espn_infers_domestic_country_without_requesting_profiles():
     database = connect(":memory:")
     initialise(database)
     database.execute("INSERT INTO clubs(name, country) VALUES (?, ?)", ("Casa", "Brasil"))
@@ -63,6 +63,6 @@ def test_espn_reuses_persisted_club_country_before_requesting_profile():
     client = Client()
     sync_period(database, "20261024", leagues={"bra.1": "Série A"}, client=client)
 
-    assert client.country_requests == ["away-id"]
+    assert client.country_requests == []
     countries = dict(database.execute("SELECT name, country FROM clubs"))
-    assert countries == {"Casa": "Brasil", "Fora": "Argentina"}
+    assert countries == {"Casa": "Brasil", "Fora": "Brasil"}
