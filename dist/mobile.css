@@ -57,3 +57,11 @@
   .forecast-1x2 b { font-size: .7rem; }
   .forecast-1x2 span:nth-child(2) { padding-inline: 4px; }
 }
+
+.fixture-market { display: inline-grid; justify-items: center; gap: 5px; }
+.probability-bar { display: flex; width: 154px; height: 7px; overflow: hidden; border-radius: 99px; background: #d5d8d5; box-shadow: inset 0 0 0 1px rgba(19,33,28,.12); }
+.probability-bar i { display: block; height: 100%; min-width: 0; }
+@media (max-width: 700px) {
+  .fixture-market { justify-items: start; }
+  .probability-bar { width: 126px; height: 6px; }
+}
