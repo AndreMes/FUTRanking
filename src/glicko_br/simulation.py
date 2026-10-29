@@ -19,6 +19,15 @@ def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
+def outcome_probabilities(home: Rating, away: Rating, home_advantage: float, draw_rate: float) -> tuple[float, float, float]:
+    """Converte expectativa Glicko-2 em probabilidades 1×2 coerentes."""
+    binary_home = expected_score(home, away, home_advantage)
+    gap = home.rating + home_advantage - away.rating
+    draw = _clamp(draw_rate * exp(-abs(gap) / DRAW_GAP_SCALE), MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY)
+    home_win = (1.0 - draw) * binary_home
+    return home_win, draw, 1.0 - home_win - draw
+
+
 def _standing_rows(matches: Iterable[dict[str, object]]) -> dict[str, dict[str, int]]:
     standings: dict[str, dict[str, int]] = defaultdict(lambda: {"points": 0, "wins": 0, "draws": 0, "losses": 0, "goals_for": 0, "goals_against": 0})
     for match in matches:
@@ -73,10 +82,8 @@ def _playoff_winner(
     aggregate_for_higher = 0
     for home_index, away_index in ((lower_seed, higher_seed), (higher_seed, lower_seed)):
         home, away = ratings.get(teams[home_index], Rating()), ratings.get(teams[away_index], Rating())
-        home_win = expected_score(home, away, HOME_ADVANTAGE)
-        gap = home.rating + HOME_ADVANTAGE - away.rating
-        draw = _clamp(observed_draw_rate * exp(-abs(gap) / DRAW_GAP_SCALE), MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY)
-        result = _simulated_outcome((1.0 - draw) * home_win, draw, random)
+        home_win, draw, _ = outcome_probabilities(home, away, HOME_ADVANTAGE, observed_draw_rate)
+        result = _simulated_outcome(home_win, draw, random)
         if home_index == higher_seed:
             aggregate_for_higher += result
         else:
@@ -123,10 +130,8 @@ def simulate_season(
         home_name, away_name = str(fixture["home_team"]), str(fixture["away_team"])
         home, away = ratings.get(home_name, Rating()), ratings.get(away_name, Rating())
         home_advantage = float(fixture.get("home_advantage", 0.0 if fixture.get("neutral_site") else HOME_ADVANTAGE))
-        binary_home = expected_score(home, away, home_advantage)
-        gap = home.rating + home_advantage - away.rating
-        draw = _clamp(observed_draw_rate * exp(-abs(gap) / DRAW_GAP_SCALE), MIN_DRAW_PROBABILITY, MAX_DRAW_PROBABILITY)
-        projected_fixtures.append((team_index[home_name], team_index[away_name], (1.0 - draw) * binary_home, draw))
+        home_win, draw, _ = outcome_probabilities(home, away, home_advantage, observed_draw_rate)
+        projected_fixtures.append((team_index[home_name], team_index[away_name], home_win, draw))
 
     champion_counts = [0] * len(teams)
     promotion_counts = [0] * len(teams)
