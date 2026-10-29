@@ -21,6 +21,12 @@ ESPN_COMPETITIONS = (
     Competition("bra.2", "Série B"),
     Competition("bra.3", "Série C"),
     Competition("bra.4", "Série D"),
+    # Cobertura ESPN confirmada para todo o período-base. Os demais estaduais
+    # entram pela GSA, que mantém melhor acervo histórico nesse nível.
+    Competition("bra.camp.paulista", "Campeonato Paulista"),
+    Competition("bra.camp.carioca", "Campeonato Carioca"),
+    Competition("bra.camp.mineiro", "Campeonato Mineiro"),
+    Competition("bra.camp.gaucho", "Campeonato Gaúcho"),
     Competition("bra.copa_do_brazil", "Copa do Brasil"),
     Competition("conmebol.libertadores", "CONMEBOL Libertadores"),
     Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana"),
@@ -34,6 +40,18 @@ ESPN_COMPETITIONS = (
     Competition("ven.1", "Primera División da Venezuela"),
 )
 
+# Competições estaduais coletadas exclusivamente pela Global Sports Archive.
+# Elas pertencem ao catálogo comum sem aumentar as chamadas à ESPN.
+GSA_ONLY_COMPETITIONS = (
+    "Paulista A2",
+    "Campeonato Paranaense",
+    "Campeonato Baiano",
+    "Campeonato Pernambucano",
+    "Campeonato Cearense",
+    "Campeonato Goiano",
+    "Campeonato Catarinense",
+)
+
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
 # Ao cadastrar outra liga nacional, acrescente-a aqui; competições continentais
 # não aparecem porque reúnem clubes de vários países.
@@ -43,6 +61,17 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Série B": "Brasil",
     "Série C": "Brasil",
     "Série D": "Brasil",
+    "Campeonato Paulista": "Brasil",
+    "Paulista A2": "Brasil",
+    "Campeonato Carioca": "Brasil",
+    "Campeonato Mineiro": "Brasil",
+    "Campeonato Gaúcho": "Brasil",
+    "Campeonato Paranaense": "Brasil",
+    "Campeonato Baiano": "Brasil",
+    "Campeonato Pernambucano": "Brasil",
+    "Campeonato Cearense": "Brasil",
+    "Campeonato Goiano": "Brasil",
+    "Campeonato Catarinense": "Brasil",
     "Copa do Brasil": "Brasil",
     "Primera División do Chile": "Chile",
     "Primera A Colombiana": "Colômbia",
@@ -54,7 +83,7 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Primera División da Venezuela": "Venezuela",
 }
 
-COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS)
+COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}" for competition in ESPN_COMPETITIONS
 )
