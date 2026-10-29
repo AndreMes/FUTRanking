@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, expected_score, update
 from .competitions import BRAZILIAN_STATE_BY_COMPETITION, COMPETITION_NAMES
-from .club_identity import alias_key, canonical_name
+from .club_identity import alias_key, canonical_name, provider_match_key
 from .neutral_sites import is_neutral_event
 
 COMPETITIONS = COMPETITION_NAMES
@@ -101,7 +101,10 @@ def initialise(database: sqlite3.Connection) -> None:
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
     _infer_historical_club_states(database)
+    provider_merges, provider_duplicates = reconcile_provider_identities(database)
     reconcile_club_identities(database)
+    if provider_merges or provider_duplicates:
+        print(f"[identidade] {provider_merges} clubes conciliados entre fontes; {provider_duplicates} partidas duplicadas removidas.")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
 
@@ -233,6 +236,47 @@ def _remove_duplicate_matches(database: sqlite3.Connection) -> int:
     for external_id in duplicate_ids:
         database.execute("DELETE FROM matches WHERE external_id=?", (external_id,))
     return len(duplicate_ids)
+
+
+def reconcile_provider_identities(database: sqlite3.Connection) -> tuple[int, int]:
+    """Une aliases quando duas fontes descrevem comprovadamente a mesma partida.
+
+    A condição exige competição, data, placar, mandante e visitante iguais após
+    normalização de razões sociais. Similaridade de nomes, por si só, nunca
+    basta; assim Botafogos e outros homônimos continuam protegidos.
+    """
+    rows = database.execute(
+        """SELECT m.external_id, m.competition, substr(m.played_at, 1, 10) AS game_date,
+                  m.home_goals, m.away_goals, home.id AS home_id, home.name AS home_name,
+                  away.id AS away_id, away.name AS away_name
+           FROM matches m JOIN clubs home ON home.id=m.home_club_id
+           JOIN clubs away ON away.id=m.away_club_id"""
+    ).fetchall()
+    groups: dict[tuple[object, ...], list[sqlite3.Row]] = defaultdict(list)
+    for row in rows:
+        groups[tuple(row[column] for column in ("competition", "game_date", "home_goals", "away_goals"))].append(row)
+    merges: list[tuple[int, int]] = []
+    for matches in groups.values():
+        espn = [row for row in matches if str(row["external_id"]).startswith("espn:")]
+        gsa = [row for row in matches if str(row["external_id"]).startswith("gsa:")]
+        for source in gsa:
+            source_key = (provider_match_key(str(source["home_name"])), provider_match_key(str(source["away_name"])))
+            for target in espn:
+                target_key = (provider_match_key(str(target["home_name"])), provider_match_key(str(target["away_name"])))
+                if source_key == target_key:
+                    merges.extend(((int(source["home_id"]), int(target["home_id"])), (int(source["away_id"]), int(target["away_id"]))))
+                    break
+    merges = list(dict.fromkeys(pair for pair in merges if pair[0] != pair[1]))
+    if not merges:
+        return 0, 0
+    _clear_rating_rebuild_state(database)
+    merged = 0
+    for source_id, target_id in merges:
+        source_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (source_id,)).fetchone()
+        target_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (target_id,)).fetchone()
+        if source_exists and target_exists and _merge_club(database, source_id, target_id):
+            merged += 1
+    return merged, _remove_duplicate_matches(database)
 
 
 def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
