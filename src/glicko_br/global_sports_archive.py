@@ -124,6 +124,11 @@ def _canonical_team_name(name: str) -> str:
     return " ".join(word for word in re.findall(r"[a-z0-9]+", stripped) if word not in ignored)
 
 
+def _crest_url(url: str) -> str:
+    """Evita o domínio GSA que redireciona imagens HTTPS para HTTP."""
+    return url.replace("https://dsg-images.com/", "https://www.dsg-images.com/")
+
+
 def _season_urls(html: str, competition: GsaCompetition) -> dict[int, str]:
     pattern = re.compile(
         rf"https?://globalsportsarchive\.com/(?:en/)?soccer/competition/{re.escape(competition.slug)}-(20\d{{2}})/(\d+)",
@@ -198,8 +203,8 @@ def _match_rows(html: str, competition: str, *, default_stage: str = "") -> list
             "group_name": "",
             "home_team": unescape(home).strip(),
             "away_team": unescape(away).strip(),
-            "home_crest": unescape(home_crest).strip(),
-            "away_crest": unescape(away_crest).strip(),
+            "home_crest": _crest_url(unescape(home_crest).strip()),
+            "away_crest": _crest_url(unescape(away_crest).strip()),
             "home_country": "Brasil",
             "away_country": "Brasil",
             "venue_country": "Brasil",
