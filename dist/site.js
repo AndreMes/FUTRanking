@@ -342,7 +342,7 @@ function method() {
 fetch('./data/ranking.json').then(r => r.json()).then(data => {
   if (page === 'ranking') {
     document.body.innerHTML = shell('Ranking');
-    const filters = [['general', 'Geral'], ['Série A', 'Série A'], ['Série B', 'Série B'], ['Série C', 'Série C']];
+    const filters = [['general', 'Geral'], ['Série A', 'Série A'], ['Série B', 'Série B'], ['Série C', 'Série C'], ['Série D', 'Série D']];
     const countries = [...new Set([...data.teams, ...(data.excluded_teams || [])].map(team => team.country).filter(country => country && country !== 'País não informado'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Inclui apenas clubes com jogos rastreados nos últimos ${data.eligibility.max_inactivity_days} dias e RD abaixo de ${data.eligibility.max_rd}. Os filtros por divisão exibem os clubes que disputam aquela Série nesta temporada; o rating continua sendo global. Clique em um clube.</p><div class="ranking-filters" role="group" aria-label="Filtrar ranking">${filters.map(([value, label], index) => `<button type="button" data-division="${value}" class="${index === 0 ? 'active' : ''}">${label}</button>`).join('')}<select class="country-filter" aria-label="Filtrar ranking por país"><option value="">Todos os países</option>${countries.map(country => `<option value="${country}">${country}</option>`).join('')}</select></div><p class="ranking-summary"></p><section class="panel ranking-panel"></section>`;
     const buttons = [...document.querySelectorAll('[data-division]')], countryFilter = el('.country-filter'), summary = el('.ranking-summary'), panel = el('.ranking-panel');
