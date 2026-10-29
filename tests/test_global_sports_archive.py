@@ -23,6 +23,10 @@ def test_gsa_parser_reads_completed_match_and_stage():
     assert rows[0]["home_team"] == "Guarani FC"
     assert rows[0]["away_goals"] == "1"
 
+def test_gsa_ignores_invalid_card_that_repeats_the_same_club():
+    invalid = HTML.replace("Boa EC", "Guarani FC")
+    assert _match_rows(invalid, "Série C") == []
+
 def test_gsa_reuses_equivalent_espn_match():
     database = connect(":memory:")
     initialise(database)
