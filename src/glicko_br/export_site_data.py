@@ -16,6 +16,11 @@ from .competitions import DOMESTIC_COMPETITION_COUNTRIES
 from .model_selection import EVALUATION_VERSION
 
 
+def public_crest_url(url: str | None) -> str | None:
+    """Converte URLs históricos da GSA para o domínio HTTPS que não redireciona."""
+    return url.replace("https://dsg-images.com/", "https://www.dsg-images.com/") if url else url
+
+
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
@@ -30,7 +35,13 @@ def exported_matches(database) -> list[dict[str, object]]:
            LEFT JOIN match_rating_effects away_effect ON away_effect.external_id = m.external_id AND away_effect.club_id = m.away_club_id
            ORDER BY m.played_at DESC, m.external_id DESC"""
     ).fetchall()
-    return [dict(row) for row in rows]
+    matches = []
+    for row in rows:
+        match = dict(row)
+        match["home_crest"] = public_crest_url(match.get("home_crest"))
+        match["away_crest"] = public_crest_url(match.get("away_crest"))
+        matches.append(match)
+    return matches
 
 
 def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, int]:
@@ -72,7 +83,10 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
         home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
         home_advantage = 0.0 if neutral_site else float(row["home_advantage"])
         home_chance = expected_score(home, away, home_advantage)
-        fixtures.append({**dict(row), "neutral_site": neutral_site, "home_advantage": home_advantage, "home_rating": home.rating, "away_rating": away.rating,
+        fixture = dict(row)
+        fixture["home_crest"] = public_crest_url(fixture.get("home_crest"))
+        fixture["away_crest"] = public_crest_url(fixture.get("away_crest"))
+        fixtures.append({**fixture, "neutral_site": neutral_site, "home_advantage": home_advantage, "home_rating": home.rating, "away_rating": away.rating,
                          "home_favoritism": round(home_chance * 100, 1), "away_favoritism": round((1 - home_chance) * 100, 1)})
     return fixtures
 
@@ -81,7 +95,7 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
     """Prepara projeções independentes para as Séries A e B em andamento."""
     season = datetime.now(timezone.utc).year
     ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
-    crests = {row["name"]: row["crest_url"] for row in database.execute("SELECT name, crest_url FROM clubs")}
+    crests = {row["name"]: public_crest_url(row["crest_url"]) for row in database.execute("SELECT name, crest_url FROM clubs")}
     simulations = []
     for competition, promotion_slots, playoff_promotion_slots in (("Série A", 0, 0), ("Série B", 4, 2)):
         matches = [dict(row) for row in database.execute(
@@ -280,7 +294,7 @@ def main() -> None:
         name = row["name"]
         team = {
             "name": name,
-            "crest": row["crest_url"],
+            "crest": public_crest_url(row["crest_url"]),
             "rating": row["rating"],
             "rd": round(row["rd"], 1),
             "last_tracked_at": row["last_tracked_at"],
