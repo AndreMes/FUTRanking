@@ -342,10 +342,16 @@ def sync_season(database, competition: GsaCompetition, season: int, *, client: G
 def bootstrap_serie_d(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
     today = today or date.today()
     total = 0
+    competition = BY_NAME["Série D"]
     for season in range(HISTORY_START_YEAR, today.year + 1):
-        count, _ = sync_season(database, BY_NAME["Série D"], season, client=client, full=True)
+        started = monotonic()
+        requests_before = client.request_count
+        count, _ = sync_season(database, competition, season, client=client, full=True)
         total += count
-        print(f"Série D {season}: {count} partidas GSA importadas.")
+        print(
+            f"[GSA][histórico] Série D {season}: {count} partidas; "
+            f"{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s."
+        )
     return total
 
 
@@ -354,12 +360,26 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
     today = today or date.today()
     total = 0
     for name in STATE_COMPETITION_NAMES:
+        competition = BY_NAME[name]
         competition_total = 0
+        competition_started = monotonic()
+        requests_before_competition = client.request_count
+        print(f"[GSA][histórico] {name}: iniciando temporadas {HISTORY_START_YEAR}–{today.year}.")
         for season in range(HISTORY_START_YEAR, today.year + 1):
-            count, _ = sync_season(database, BY_NAME[name], season, client=client, full=True)
+            started = monotonic()
+            requests_before = client.request_count
+            count, _ = sync_season(database, competition, season, client=client, full=True)
             competition_total += count
+            print(
+                f"[GSA][histórico] {name} {season}: {count} partidas; "
+                f"{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s."
+            )
         total += competition_total
-        print(f"{name}: {competition_total} partidas GSA importadas ({HISTORY_START_YEAR}-{today.year}).")
+        print(
+            f"[GSA][histórico] {name}: concluído — {competition_total} partidas; "
+            f"{client.request_count - requests_before_competition} chamadas; "
+            f"{monotonic() - competition_started:.1f}s."
+        )
     return total
 
 
@@ -373,8 +393,14 @@ def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | N
         competition for competition in COMPETITIONS if competition.name in {"Série C", "Série D"}
     )
     for competition in tracked:
+        started = monotonic()
+        requests_before = client.request_count
         count, existing = sync_season(database, competition, today.year, client=client, full=full)
         total += count
         reused += existing
-        print(f"{competition.name} {today.year}: {count} partidas GSA verificadas ({existing} conciliadas com ESPN).")
+        print(
+            f"[GSA][rotina] {competition.name} {today.year}: {count} partidas verificadas, "
+            f"{existing} conciliadas com ESPN; {client.request_count - requests_before} chamadas; "
+            f"{monotonic() - started:.1f}s."
+        )
     return total, reused
