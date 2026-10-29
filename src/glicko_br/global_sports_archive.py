@@ -1,7 +1,8 @@
 """Coletor conservador de resultados do Global Sports Archive.
 
-O GSA complementa a ESPN: mantém a Série C corrente e fornece a carga
-histórica da Série D a partir de páginas públicas de competição.
+O GSA complementa a ESPN, mantém as Séries C/D e cobre os estaduais. As
+páginas de competição são HTML público, servido já com confrontos e placares,
+sem navegador ou endpoints privados.
 """
 from __future__ import annotations
 
@@ -34,8 +35,20 @@ class GsaCompetition:
 COMPETITIONS = (
     GsaCompetition("Série C", "serie-c", f"{BASE_URL}/en/soccer/competition/serie-c-2016/11224"),
     GsaCompetition("Série D", "serie-d", f"{BASE_URL}/en/soccer/competition/serie-d-2016/11777"),
+    GsaCompetition("Campeonato Paulista", "campeonato-paulista", f"{BASE_URL}/en/soccer/competition/paulistao-casas-bahia-2026/78189"),
+    GsaCompetition("Paulista A2", "paulista-a2", f"{BASE_URL}/en/soccer/competition/paulistao-a2-rivalo-2026/78190"),
+    GsaCompetition("Campeonato Carioca", "campeonato-carioca", f"{BASE_URL}/en/soccer/competition/campeonato-carioca-superbet-2026/78042"),
+    GsaCompetition("Campeonato Mineiro", "campeonato-mineiro", f"{BASE_URL}/en/soccer/competition/campeonato-mineiro-sicoob-modulo-i-2026/78224"),
+    GsaCompetition("Campeonato Gaúcho", "campeonato-gaucho", f"{BASE_URL}/en/soccer/competition/gauchao-superbet-2026/78221"),
+    GsaCompetition("Campeonato Paranaense", "campeonato-paranaense", f"{BASE_URL}/en/soccer/competition/campeonato-paranaense-serie-ouro-2026/77422"),
+    GsaCompetition("Campeonato Baiano", "campeonato-baiano", f"{BASE_URL}/en/soccer/competition/baianao-serie-a-2027/81914"),
+    GsaCompetition("Campeonato Pernambucano", "campeonato-pernambucano", f"{BASE_URL}/en/soccer/competition/campeonato-pernambucano-a1-2026/78215"),
+    GsaCompetition("Campeonato Cearense", "campeonato-cearense", f"{BASE_URL}/en/soccer/competition/campeonato-cearense-superbet-serie-a-2026/78058"),
+    GsaCompetition("Campeonato Goiano", "campeonato-goiano", f"{BASE_URL}/en/soccer/competition/goianao-novomundo-2026/78214"),
+    GsaCompetition("Campeonato Catarinense", "campeonato-catarinense", f"{BASE_URL}/en/soccer/competition/catarinense-fort-atacadista-2026/78219"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
+STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS if competition.name not in {"Série C", "Série D"})
 
 
 class GlobalSportsArchiveError(RuntimeError):
@@ -130,13 +143,19 @@ def _crest_url(url: str) -> str:
 
 
 def _season_urls(html: str, competition: GsaCompetition) -> dict[int, str]:
-    pattern = re.compile(
-        rf"https?://globalsportsarchive\.com/(?:en/)?soccer/competition/{re.escape(competition.slug)}-(20\d{{2}})/(\d+)",
-        re.IGNORECASE,
-    )
+    """Lê a cronologia da própria competição, inclusive nomes patrocinados.
+
+    O endereço muda quando a competição troca de patrocinador. A página de
+    cada torneio já lista sua cronologia; portanto não exigimos um *slug*
+    idêntico em todos os anos.
+    """
     return {
-        int(year): f"{BASE_URL}/en/soccer/competition/{competition.slug}-{year}/{identifier}"
-        for year, identifier in pattern.findall(html)
+        int(year): f"{BASE_URL}/en/soccer/competition/{slug}-{year}/{identifier}"
+        for slug, year, identifier in re.findall(
+            r"https?://globalsportsarchive\.com/(?:en/)?soccer/competition/([^\"'<>\s]+?)-(20\d{2})/(\d+)",
+            html,
+            re.IGNORECASE,
+        )
     }
 
 
@@ -313,6 +332,20 @@ def bootstrap_serie_d(database, *, client: GlobalSportsArchiveClient, today: dat
         count, _ = sync_season(database, BY_NAME["Série D"], season, client=client, full=True)
         total += count
         print(f"Série D {season}: {count} partidas GSA importadas.")
+    return total
+
+
+def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Importa todos os estaduais rastreados desde o início da amostra."""
+    today = today or date.today()
+    total = 0
+    for name in STATE_COMPETITION_NAMES:
+        competition_total = 0
+        for season in range(HISTORY_START_YEAR, today.year + 1):
+            count, _ = sync_season(database, BY_NAME[name], season, client=client, full=True)
+            competition_total += count
+        total += competition_total
+        print(f"{name}: {competition_total} partidas GSA importadas ({HISTORY_START_YEAR}-{today.year}).")
     return total
 
 
