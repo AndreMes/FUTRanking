@@ -13,6 +13,7 @@ from .simulation import outcome_probabilities, simulate_season
 from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
 from .competitions import DOMESTIC_COMPETITION_COUNTRIES
+from .competitions import ESPN_COMPETITIONS
 from .model_selection import EVALUATION_VERSION
 from .crest_colors import backfill_fixture_colors
 
@@ -250,6 +251,18 @@ def exported_data_health(database) -> list[dict[str, object]]:
     ]
 
 
+def data_sources_for(competition: str) -> list[dict[str, str]]:
+    """Proveniência pública exibida junto da competição em Dados."""
+    espn = {item.name: item.espn_slug for item in ESPN_COMPETITIONS}
+    if competition == "Série C":
+        return [{"period": "2016–2025", "source": "ESPN", "url": "https://www.espn.com/soccer/scoreboard/_/league/bra.3"}, {"period": "2026–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-c-2026/77984"}]
+    if competition == "Série D":
+        return [{"period": "2016–atual", "source": "Global Sports Archive", "url": "https://globalsportsarchive.com/en/soccer/competition/serie-d-2026/77985"}]
+    if competition in espn:
+        return [{"period": "2016–atual", "source": "ESPN", "url": f"https://www.espn.com/soccer/scoreboard/_/league/{espn[competition]}"}]
+    return []
+
+
 def _backtest_summary(rows) -> dict[str, object]:
     """Agrega previsões feitas antes do jogo em faixas de calibração."""
     rows = list(rows)
@@ -348,6 +361,9 @@ def main() -> None:
             team["ineligibility_reasons"] = row["ineligibility_reasons"]
             excluded_teams.append(team)
     fixtures = exported_fixtures(database, ranking)
+    health = exported_data_health(database)
+    for row in health:
+        row["sources"] = data_sources_for(str(row["competition"]))
     payload = {
         "competition": "Campeonato Brasileiro Série A",
         "period_date": ranking[0]["period_date"],
@@ -359,7 +375,7 @@ def main() -> None:
         "excluded_teams": excluded_teams,
         "matches": matches,
         "fixtures": fixtures,
-        "data_health": exported_data_health(database),
+        "data_health": health,
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
