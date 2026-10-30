@@ -85,8 +85,8 @@ BRAZILIAN_ALIASES = {
     "guapore fc": "Guapore", "galicia ec": "Galicia EC",
     "ec democrata": "Democrata FC", "sao raimundo rr": "São Raimundo EC (RR)",
     "princesa do solimoes ec": "Princesa do Solimoes", "globo fc": "Globo",
-    # Segunda rodada: duas pendências detectadas e uma indicação manual.
-    "ec internacional": "Internacional", "ec sao bernardo": "São Bernardo",
+    # Segunda rodada: uma pendência detectada e uma indicação manual.
+    "ec sao bernardo": "São Bernardo",
     "sao bernardo fc": "São Bernardo",
     "ec xv de novembro de piracicaba": "XV de Piracicaba",
 }
@@ -97,6 +97,8 @@ BRAZILIAN_ALIASES = {
 BRAZILIAN_SEPARATE_PAIRS = frozenset({
     frozenset(("america fc", "america se")),
     frozenset(("nautico", "nautico fc")),
+    # São clubes gaúchos diferentes: houve confronto direto entre ambos em 2026.
+    frozenset(("ec internacional", "internacional")),
 })
 
 
