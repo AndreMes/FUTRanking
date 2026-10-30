@@ -324,6 +324,41 @@ const parsedList = value => {
 };
 const marketStart = market => market.gameStartTime || market.startDate || market.endDate || market.createdAt;
 const marketUrl = market => market.eventSlug || market.slug ? `https://polymarket.com/event/${encodeURIComponent(market.eventSlug || market.slug)}` : 'https://polymarket.com';
+const responseRows = payload => Array.isArray(payload) ? payload : payload?.data || [];
+const marketEventSlug = market => market.eventSlug || market.event_slug || market.event?.slug || market.events?.[0]?.slug;
+
+async function polymarketMarketsForFixtures(fixtures) {
+  // Partimos da agenda do FUTRanking — não do catálogo geral do Polymarket.
+  // Seis jogos próximos limitam a consulta a, no máximo, doze leituras leves:
+  // uma busca pelo mandante e uma leitura do evento para cada confronto.
+  const candidates = [...fixtures]
+    .filter(fixture => new Date(fixture.scheduled_at).getTime() >= Date.now() - 6 * 60 * 60 * 1000)
+    .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+    .slice(0, 6);
+  const discovered = await Promise.allSettled(candidates.map(async fixture => {
+    const url = `https://gamma-api.polymarket.com/markets?active=true&closed=false&archived=false&limit=20&q=${encodeURIComponent(fixture.home_team)}`;
+    const response = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return { fixture, markets: responseRows(await response.json()) };
+  }));
+  const events = new Map();
+  discovered.forEach(result => {
+    if (result.status !== 'fulfilled') return;
+    result.value.markets.forEach(market => {
+      if (!namesMatch(result.value.fixture.home_team, `${market.question || ''} ${market.title || ''}`)) return;
+      const slug = marketEventSlug(market);
+      if (slug) events.set(slug, result.value.fixture);
+    });
+  });
+  const loaded = await Promise.allSettled([...events.entries()].slice(0, 6).map(async ([slug, fixture]) => {
+    const response = await fetch(`https://gamma-api.polymarket.com/events?slug=${encodeURIComponent(slug)}`, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return { fixture, events: responseRows(await response.json()) };
+  }));
+  return loaded.flatMap(result => result.status === 'fulfilled'
+    ? result.value.events.flatMap(event => (event.markets || []).map(market => ({ ...market, eventSlug: event.slug, eventTitle: event.title, gameStartTime: market.gameStartTime || event.startDate || market.startDate })))
+    : []);
+}
 
 function matchedPolymarketOutcomes(fixtures, markets) {
   const now = Date.now(), seen = new Set(), rows = [];
@@ -408,29 +443,7 @@ async function polymarketOdds(data) {
     status.textContent = 'Consultando mercados ativos do Polymarket…';
     panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p>`;
     try {
-      // Uma única página curta, ordenada pelo encerramento mais próximo: a
-      // comparação prioriza jogos iminentes e evita varrer o catálogo inteiro.
-      // O Gamma usa nomes de campo em camelCase neste endpoint. Se o provedor
-      // mudar novamente a ordenação, repetimos uma única vez com os parâmetros
-      // mínimos documentados — sem ampliar o número de mercados consultados.
-      const endpoints = [
-        'https://gamma-api.polymarket.com/events?active=true&closed=false&tag_slug=soccer&limit=100&order=endDate&ascending=true',
-        'https://gamma-api.polymarket.com/events?active=true&closed=false&tag_slug=soccer&limit=100',
-      ];
-      let response;
-      for (const endpoint of endpoints) {
-        response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
-        if (response.ok || response.status !== 422) break;
-      }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json();
-      const events = Array.isArray(payload) ? payload : payload.data || [];
-      // Em esportes, um evento contém os mercados dos seus possíveis
-      // resultados. Herdamos o horário e o link do evento para conciliar o
-      // mercado 1X2 com o fixture do FUTRanking.
-      const markets = events.flatMap(event => Array.isArray(event.markets)
-        ? event.markets.map(market => ({ ...market, eventSlug: event.slug, eventTitle: event.title, gameStartTime: market.gameStartTime || event.startDate || market.startDate }))
-        : [event]);
+      const markets = await polymarketMarketsForFixtures(data.fixtures || []);
       const matched = matchedPolymarketOutcomes(data.fixtures || [], markets), rows = matched;
       const matchedGames = new Set(matched.map(row => `${row.fixture.external_id}`)).size;
       status.textContent = `${matchedGames} jogo${matchedGames === 1 ? '' : 's'} conciliado${matchedGames === 1 ? '' : 's'} · ${rows.length} resultado${rows.length === 1 ? '' : 's'} 1X2 exibido${rows.length === 1 ? '' : 's'} · atualizado agora`;
