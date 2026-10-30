@@ -1,3 +1,4 @@
+from glicko_br.club_identity import canonical_name
 from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, reconcile_provider_identities, store_match
 
 
@@ -69,4 +70,11 @@ def test_provider_reconciliation_handles_institutional_names_only_with_full_matc
 
     assert (merged, duplicates) == (2, 1)
     assert [row["name"] for row in database.execute("SELECT name FROM clubs ORDER BY name")] == ["Ferroviária", "Maringá"]
+
+
+def test_reviewed_aliases_from_first_admin_round():
+    assert canonical_name("Paysandu SC", "BR") == "Paysandu"
+    assert canonical_name("Rio Branco FC", "BR") == "Rio Branco AC"
+    assert canonical_name("Águia de Marabá FC", "BR") == "Aguia de Maraba"
+    assert canonical_name("EC Democrata", "BR") == "Democrata FC"
 
