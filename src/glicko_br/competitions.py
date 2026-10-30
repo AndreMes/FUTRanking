@@ -62,6 +62,14 @@ GSA_ONLY_COMPETITIONS = (
     "Campeonato Piauiense",
     "Campeonato Sergipano",
     "Campeonato Mato-Grossense",
+    "Campeonato Acreano",
+    "Campeonato Amapaense",
+    "Campeonato Brasiliense",
+    "Campeonato Capixaba",
+    "Campeonato Rondoniense",
+    "Campeonato Roraimense",
+    "Campeonato Sul-Mato-Grossense",
+    "Campeonato Tocantinense",
 )
 
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
@@ -95,6 +103,14 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Campeonato Piauiense": "Brasil",
     "Campeonato Sergipano": "Brasil",
     "Campeonato Mato-Grossense": "Brasil",
+    "Campeonato Acreano": "Brasil",
+    "Campeonato Amapaense": "Brasil",
+    "Campeonato Brasiliense": "Brasil",
+    "Campeonato Capixaba": "Brasil",
+    "Campeonato Rondoniense": "Brasil",
+    "Campeonato Roraimense": "Brasil",
+    "Campeonato Sul-Mato-Grossense": "Brasil",
+    "Campeonato Tocantinense": "Brasil",
     "Copa do Brasil": "Brasil",
     "Primera División do Chile": "Chile",
     "Primera A Colombiana": "Colômbia",
@@ -121,6 +137,10 @@ BRAZILIAN_STATE_BY_COMPETITION = {
     "Campeonato Paraibano": "PB", "Campeonato Maranhense": "MA",
     "Campeonato Piauiense": "PI", "Campeonato Sergipano": "SE",
     "Campeonato Mato-Grossense": "MT",
+    "Campeonato Acreano": "AC", "Campeonato Amapaense": "AP",
+    "Campeonato Brasiliense": "DF", "Campeonato Capixaba": "ES",
+    "Campeonato Rondoniense": "RO", "Campeonato Roraimense": "RR",
+    "Campeonato Sul-Mato-Grossense": "MS", "Campeonato Tocantinense": "TO",
 }
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
