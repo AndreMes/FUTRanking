@@ -78,8 +78,12 @@ def test_historical_bridge_catalog_contains_the_requested_competitions():
         "Campeonato Paulista", "Paulista A2", "Campeonato Carioca", "Campeonato Mineiro", "Campeonato Gaúcho",
         "Campeonato Paranaense", "Campeonato Baiano", "Campeonato Pernambucano", "Campeonato Cearense",
         "Campeonato Goiano", "Campeonato Catarinense", "Copa do Nordeste", "Copa Paulista",
+        "Campeonato Paraense", "Campeonato Alagoano", "Campeonato Potiguar", "Campeonato Amazonense",
     }
-    assert set(REGIONAL_BRIDGE_COMPETITION_NAMES) == {"Copa do Nordeste", "Copa Paulista"}
+    assert set(REGIONAL_BRIDGE_COMPETITION_NAMES) == {
+        "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
+        "Campeonato Potiguar", "Campeonato Amazonense",
+    }
     assert "Copa Paulista" not in STATE_COMPETITION_NAMES
 
 
