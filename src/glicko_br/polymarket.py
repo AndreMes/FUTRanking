@@ -21,6 +21,7 @@ PRICE_PATTERN = re.compile(r"\b([A-Z]{2,6}\d?)\s*(\d{1,2})\s*(?:¢|centavos?)", 
 def page_text(markup: str) -> str:
     """Reduz o HTML renderizado a texto, preservando as sequências dos cards."""
     text = re.sub(r"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>", " ", markup, flags=re.IGNORECASE | re.DOTALL)
+    text = re.sub(r"</?(?:h[1-6]|article)[^>]*>", "\n", text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)
     return re.sub(r"[ \t\r\f\v]+", " ", html.unescape(text)).replace("\xa0", " ")
 
