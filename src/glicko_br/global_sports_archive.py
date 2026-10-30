@@ -58,6 +58,14 @@ COMPETITIONS = (
     GsaCompetition("Campeonato Piauiense", "campeonato-piauiense", f"{BASE_URL}/en/soccer/competition/campeonato-piauiense-serie-a-2026-2027/80563"),
     GsaCompetition("Campeonato Sergipano", "campeonato-sergipano", f"{BASE_URL}/en/soccer/competition/campeonato-sergipao-superbet-2026/78057"),
     GsaCompetition("Campeonato Mato-Grossense", "campeonato-mato-grossense", f"{BASE_URL}/en/soccer/competition/campeonato-mato-grossense-1a-divisao-2026/80561"),
+    GsaCompetition("Campeonato Acreano", "campeonato-acreano", f"{BASE_URL}/en/soccer/competition/campeonato-acreano-2026/78218"),
+    GsaCompetition("Campeonato Amapaense", "campeonato-amapaense", f"{BASE_URL}/en/soccer/competition/campeonato-amapaense-serie-a-2026/80554"),
+    GsaCompetition("Campeonato Brasiliense", "campeonato-brasiliense", f"{BASE_URL}/en/soccer/competition/candangao-brb-2026/78154"),
+    GsaCompetition("Campeonato Capixaba", "campeonato-capixaba", f"{BASE_URL}/en/soccer/competition/campeonato-capixaba-serie-a-2026/80557"),
+    GsaCompetition("Campeonato Rondoniense", "campeonato-rondoniense", f"{BASE_URL}/en/soccer/competition/campeonato-rondoniense-serie-a-2026/80569"),
+    GsaCompetition("Campeonato Roraimense", "campeonato-roraimense", f"{BASE_URL}/en/soccer/competition/campeonato-roraimense-giro-agro-2026/80570"),
+    GsaCompetition("Campeonato Sul-Mato-Grossense", "campeonato-sul-mato-grossense", f"{BASE_URL}/en/soccer/competition/campeonato-sul-mato-grossense-serie-a-2026/80560"),
+    GsaCompetition("Campeonato Tocantinense", "campeonato-tocantinense", f"{BASE_URL}/en/soccer/competition/campeonato-tocantinense-1a-divisao-2026/80571"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
 # Todas estas competições trazem pontes históricas entre níveis do futebol
@@ -77,6 +85,9 @@ REGIONAL_BRIDGE_COMPETITION_NAMES = (
     "Campeonato Potiguar", "Campeonato Amazonense",
     "Campeonato Paraibano", "Campeonato Maranhense", "Campeonato Piauiense",
     "Campeonato Sergipano", "Campeonato Mato-Grossense",
+    "Campeonato Acreano", "Campeonato Amapaense", "Campeonato Brasiliense",
+    "Campeonato Capixaba", "Campeonato Rondoniense", "Campeonato Roraimense",
+    "Campeonato Sul-Mato-Grossense", "Campeonato Tocantinense",
 )
 HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES
 
