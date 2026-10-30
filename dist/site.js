@@ -459,6 +459,23 @@ function eventOneXTwo(event) {
   return home != null && draw != null && away != null ? { home, draw, away } : null;
 }
 
+function brazilSerieASeries(sports) {
+  const label = item => [item.sport, item.name, item.title, item.label, item.slug, item.series]
+    .filter(Boolean).join(' ');
+  const isBrazilSerieA = item => {
+    const value = normalizedTeamName(label(item));
+    return /(brasileirao|brasileiro|brazil|brasil)/.test(value) && /(serie a|seriea|serie-a)/.test(value);
+  };
+  const sport = sports.find(isBrazilSerieA);
+  if (!sport) return null;
+  const rawSeries = sport.seriesId ?? sport.series_id ?? sport.series ?? sport.id;
+  const ids = Array.isArray(rawSeries) ? rawSeries : String(rawSeries || '').split(',');
+  return {
+    label: sport.sport || sport.name || sport.title || 'Brasileirão Série A',
+    ids: ids.map(value => String(value).trim()).filter(value => /^\d+$/.test(value)),
+  };
+}
+
 async function polymarketOdds() {
   document.body.innerHTML = shell('Odds da Série A', 'Teste de fonte');
   el('#content').innerHTML = `<p class="odds-intro">Teste isolado da fonte: jogos da rodada vigente do Campeonato Brasileiro e as probabilidades 1X2 retornadas pelo Polymarket. Não há comparação com o FUTRanking nesta etapa.</p><div class="odds-toolbar"><span class="odds-status">Consultando a categoria brasileira no Polymarket…</span><button type="button" class="odds-refresh" disabled>Atualizar cotações</button></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Teste de integração.</strong> Os nomes e percentuais exibidos aqui vêm diretamente do Polymarket. Depois de confirmar a fonte e o formato dos três resultados, voltamos a conectar esta tabela aos fixtures e ao modelo do FUTRanking.</aside>`;
@@ -467,21 +484,25 @@ async function polymarketOdds() {
     button.disabled = true;
     status.textContent = 'Consultando a categoria brasileira no Polymarket…';
     try {
-      const tagsResponse = await fetch('https://gamma-api.polymarket.com/tags', { headers: { Accept: 'application/json' } });
-      if (!tagsResponse.ok) throw new Error(`HTTP ${tagsResponse.status}`);
-      const tags = responseRows(await tagsResponse.json());
-      const tag = tags.find(item => /brasil|brazil/.test(normalizedTeamName(item.label || item.name || item.slug || '')) && /serie a|brasileirao|seriea/.test(normalizedTeamName(item.label || item.name || item.slug || '')));
-      if (!tag?.id) throw new Error('categoria Série A não encontrada');
-      const eventsResponse = await fetch(`https://gamma-api.polymarket.com/events?active=true&closed=false&tag_id=${encodeURIComponent(tag.id)}&limit=100`, { headers: { Accept: 'application/json' } });
-      if (!eventsResponse.ok) throw new Error(`HTTP ${eventsResponse.status}`);
+      // Ligas esportivas não são tags gerais. O catálogo /sports traz a série
+      // oficial que alimenta a tela "Brasileirão Série A" do Polymarket.
+      const sportsResponse = await fetch('https://gamma-api.polymarket.com/sports', { headers: { Accept: 'application/json' } });
+      if (!sportsResponse.ok) throw new Error(`HTTP ${sportsResponse.status}`);
+      const series = brazilSerieASeries(responseRows(await sportsResponse.json()));
+      if (!series?.ids.length) throw new Error('série esportiva Brasileirão Série A não encontrada');
+      const eventResponses = await Promise.all(series.ids.map(async id => {
+        const response = await fetch(`https://gamma-api.polymarket.com/events?active=true&closed=false&series_id=${encodeURIComponent(id)}&limit=100&order=startDate&ascending=true`, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return responseRows(await response.json());
+      }));
       const now = Date.now();
-      const events = responseRows(await eventsResponse.json())
+      const events = eventResponses.flat()
         .filter(event => new Date(event.gameStartTime || event.startDate || event.endDate).getTime() >= now - 6 * 60 * 60 * 1000)
         .sort((a, b) => new Date(a.gameStartTime || a.startDate || a.endDate) - new Date(b.gameStartTime || b.startDate || b.endDate));
       const first = events[0] && new Date(events[0].gameStartTime || events[0].startDate || events[0].endDate);
       const round = first ? events.filter(event => Math.abs(new Date(event.gameStartTime || event.startDate || event.endDate) - first) <= 3 * 86400000).slice(0, 12) : [];
       const rows = round.map(event => ({ event, odds: eventOneXTwo(event) })).filter(row => row.odds);
-      status.textContent = `${rows.length} jogo${rows.length === 1 ? '' : 's'} com mercado 1X2 · categoria: ${tag.label || tag.name || tag.slug}`;
+      status.textContent = `${rows.length} jogo${rows.length === 1 ? '' : 's'} com mercado 1X2 · liga: ${series.label}`;
       panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${rows.map(({ event, odds }) => `<article class="row brazil-odds-row"><span><strong>${html(event.title)}</strong><small>${event.gameStartTime || event.startDate ? html(time(event.gameStartTime || event.startDate)) : 'Horário não informado'}</small></span><strong>${(odds.home * 100).toFixed(1)}%</strong><strong>${(odds.draw * 100).toFixed(1)}%</strong><strong>${(odds.away * 100).toFixed(1)}%</strong></article>`).join('') || '<p class="empty-list">A categoria foi consultada, mas não retornou um mercado 1X2 ativo para a próxima rodada. O próximo passo será mostrar os eventos e contratos brutos devolvidos pela fonte.</p>'}`;
     } catch (error) {
       status.textContent = 'Não foi possível consultar a Série A agora.';
