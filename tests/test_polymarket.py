@@ -1,50 +1,47 @@
-from glicko_br.polymarket import event_odds, extract_game_slugs, extract_games
+from glicko_br.polymarket import event_odds, games_from_events, keyset_url, series_ids_for_sport
 
 
-def test_extract_games_reads_visible_moneyline_triplet():
-    markup = """
-    <h3>SC Corinthians Paulista vs. Mirassol FC</h3>
-    <div>COR1 55¢</div><div>DRAW 27¢</div><div>MIR 20¢</div>
-    """
-    assert extract_games(markup) == [{
+def test_series_ids_for_brazilian_sport_come_from_metadata():
+    sports = [{"sport": "epl", "series": "12"}, {"sport": "bra", "series": "101, 102"}]
+    assert series_ids_for_sport(sports) == ["101", "102"]
+
+
+def test_keyset_url_uses_cursor_not_offset():
+    url = keyset_url(["101", "102"], "next-page-token")
+    assert "events/keyset?" in url
+    assert "series_id=101" in url and "series_id=102" in url
+    assert "after_cursor=next-page-token" in url
+    assert "offset" not in url
+
+
+def test_games_from_events_uses_embedded_api_markets():
+    events = [{
+        "slug": "bra-cor1-mir-2026-10-30",
+        "title": "SC Corinthians Paulista vs. Mirassol FC",
+        "eventStartTime": "2026-10-30T23:00:00Z",
+        "markets": [
+            {"slug": "bra-cor1-mir-2026-10-30-cor1", "title": "COR1", "outcomePrices": '["0.55", "0.45"]'},
+            {"slug": "bra-cor1-mir-2026-10-30-draw", "title": "DRAW", "outcomePrices": '["0.27", "0.73"]'},
+            {"slug": "bra-cor1-mir-2026-10-30-mir", "title": "MIR", "outcomePrices": '["0.20", "0.80"]'},
+        ],
+    }]
+    assert games_from_events(events) == [{
         "title": "SC Corinthians Paulista vs. Mirassol FC",
         "home": 0.55,
         "draw": 0.27,
         "away": 0.20,
         "codes": {"home": "COR1", "away": "MIR"},
+        "scheduled_at": "2026-10-30T23:00:00Z",
+        "event_slug": "bra-cor1-mir-2026-10-30",
     }]
 
 
-def test_extract_games_reads_each_card_not_only_last_card():
-    markup = """
-    <h3>Santos FC vs. SE Palmeiras</h3><div>SAN 30¢</div><div>DRAW 28¢</div><div>PAL 44¢</div>
-    <h3>SC Corinthians Paulista vs. Mirassol FC</h3><div>COR1 55¢</div><div>DRAW 27¢</div><div>MIR 20¢</div>
-    """
-    assert [game["title"] for game in extract_games(markup)] == [
-        "Santos FC vs. SE Palmeiras",
-        "SC Corinthians Paulista vs. Mirassol FC",
-    ]
-
-
-def test_extract_games_removes_neighbouring_card_data_from_title():
-    markup = """
-    <div>CRU 59¢ DRAW 23¢ BAH 22¢ EC Vitória vs. Fluminense FC 23:00 $2.63 Vol
-    Vitória 10-8-14 Fluminense 15-9-9 VIT 36¢ DRAW 32¢ FLU 45¢</div>
-    """
-    assert extract_games(markup)[0]["title"] == "EC Vitória vs. Fluminense FC"
-
-
-def test_extract_game_slugs_uses_each_game_link():
-    markup = '<a href="/es/sports/bra/bra-cor1-mir-2026-10-30">Jogo</a><a href="/es/sports/bra/bra-vit-flu-2026-10-30">Jogo</a>'
-    assert extract_game_slugs(markup) == ["bra-cor1-mir-2026-10-30", "bra-vit-flu-2026-10-30"]
-
-
 def test_event_odds_uses_moneyline_contract_suffixes():
-    event = {"title": "SC Corinthians Paulista vs. Mirassol FC", "startDate": "2026-10-30T23:00:00Z"}
+    event = {"slug": "bra-cor1-mir-2026-10-30", "title": "SC Corinthians Paulista vs. Mirassol FC"}
     markets = [
         {"slug": "bra-cor1-mir-2026-10-30-cor1", "title": "COR1", "outcomePrices": '["0.55", "0.45"]'},
         {"slug": "bra-cor1-mir-2026-10-30-draw", "title": "DRAW", "outcomePrices": '["0.27", "0.73"]'},
         {"slug": "bra-cor1-mir-2026-10-30-mir", "title": "MIR", "outcomePrices": '["0.20", "0.80"]'},
         {"slug": "bra-cor1-mir-2026-10-30-total-2pt5", "title": "O 2.5", "outcomePrices": '["0.49", "0.51"]'},
     ]
-    assert event_odds(event, markets, "bra-cor1-mir-2026-10-30")["codes"] == {"home": "COR1", "away": "MIR"}
+    assert event_odds(event, markets)["codes"] == {"home": "COR1", "away": "MIR"}
