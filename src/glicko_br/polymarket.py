@@ -1,72 +1,19 @@
-"""Coleta pública e estática das odds 1X2 do Brasileirão no Polymarket."""
+"""Coleta estática das odds 1X2 da Série A pela API oficial do Polymarket."""
 from __future__ import annotations
 
 import argparse
-import html
 import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 
-BRA_GAMES_URL = "https://polymarket.com/es/sports/bra/games"
-GAMMA_EVENTS_URL = "https://gamma-api.polymarket.com/events?slug={}"
-GAMMA_MARKETS_URL = "https://gamma-api.polymarket.com/markets?active=true&closed=false&event_id={}&limit=100"
-GAME_SLUG_PATTERN = re.compile(r"/sports/bra/(bra-[a-z0-9-]+)", re.IGNORECASE)
-GAME_PATTERN = re.compile(
-    r"(?P<title>[A-ZÀ-ÿ][^\n]{2,140}?\s+vs\.?\s+[A-ZÀ-ÿ][^\n]{2,140}?)\s+(?=[A-Z]{2,6}\d?\s*\d{1,2}\s*(?:¢|centavos?))(?P<body>.{0,1800}?)(?=(?:[A-ZÀ-ÿ][^\n]{2,140}?\s+vs\.?\s+[A-ZÀ-ÿ])|\Z)",
-    re.IGNORECASE | re.DOTALL,
-)
-PRICE_PATTERN = re.compile(r"\b([A-Z]{2,6}\d?)\s*(\d{1,2})\s*(?:¢|centavos?)", re.IGNORECASE)
-
-
-def clean_title(value: str) -> str:
-    """Remove preços/estatísticas que precedem ou sucedem o título no card."""
-    value = re.sub(r"^.*\b[A-Z]{2,6}\d?\s+\d{1,2}\s*(?:¢|centavos?)\s+", "", value, flags=re.IGNORECASE)
-    value = re.split(r"\s+\d{1,2}:\d{2}\b", value, maxsplit=1)[0]
-    return " ".join(value.split())
-
-
-def page_text(markup: str) -> str:
-    """Reduz o HTML renderizado a texto, preservando as sequências dos cards."""
-    text = re.sub(r"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>", " ", markup, flags=re.IGNORECASE | re.DOTALL)
-    marker = "\ue000"
-    text = re.sub(r"</?(?:h[1-6]|article)[^>]*>", marker, text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", html.unescape(text)).replace("\xa0", " ")
-    return text.replace(marker, "\n")
-
-
-def extract_games(markup: str) -> list[dict[str, object]]:
-    """Extrai os três contratos de moneyline dos cards renderizados da página."""
-    games: list[dict[str, object]] = []
-    seen: set[str] = set()
-    for match in GAME_PATTERN.finditer(page_text(markup)):
-        title = clean_title(match.group("title"))
-        prices = PRICE_PATTERN.findall(match.group("body"))
-        draw_index = next((index for index, (name, _) in enumerate(prices) if name.upper() == "DRAW"), None)
-        if not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE) or draw_index is None or draw_index == 0 or draw_index + 1 >= len(prices) or title in seen:
-            continue
-        home_code, home = prices[draw_index - 1]
-        _, draw = prices[draw_index]
-        away_code, away = prices[draw_index + 1]
-        if len({home_code.upper(), "DRAW", away_code.upper()}) != 3:
-            continue
-        games.append({
-            "title": title,
-            "home": int(home) / 100,
-            "draw": int(draw) / 100,
-            "away": int(away) / 100,
-            "codes": {"home": home_code, "away": away_code},
-        })
-        seen.add(title)
-    return games
-
-
-def extract_game_slugs(markup: str) -> list[str]:
-    """Obtém os links dos jogos: são a fronteira estável entre os cards."""
-    return list(dict.fromkeys(match.lower() for match in GAME_SLUG_PATTERN.findall(html.unescape(markup))))
+GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
+GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
+SERIE_A_SPORT = "bra"
+MAX_EVENT_PAGES = 5
 
 
 def parsed_list(value: object) -> list[object]:
@@ -74,15 +21,45 @@ def parsed_list(value: object) -> list[object]:
         return value
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
         except json.JSONDecodeError:
             return []
+        return parsed if isinstance(parsed, list) else []
     return []
 
 
-def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug: str) -> dict[str, object] | None:
-    """Lê somente os três contratos de moneyline do evento identificado."""
-    prefix = f"{slug}-"
+def series_ids_for_sport(sports: object, sport: str = SERIE_A_SPORT) -> list[str]:
+    """Obtém os identificadores de série publicados no catálogo oficial."""
+    if not isinstance(sports, list):
+        return []
+    item = next((entry for entry in sports if isinstance(entry, dict) and str(entry.get("sport") or "").lower() == sport.lower()), None)
+    if not item:
+        return []
+    raw = item.get("series")
+    values = raw if isinstance(raw, list) else str(raw or "").split(",")
+    return [str(value).strip() for value in values if str(value).strip().isdigit()]
+
+
+def keyset_url(series_ids: list[str], cursor: str | None = None) -> str:
+    """Cria uma consulta paginada, sem offset, filtrada pela série brasileira."""
+    query: list[tuple[str, str]] = [
+        ("limit", "100"),
+        ("closed", "false"),
+        ("order", "eventStartTime"),
+        ("ascending", "true"),
+    ]
+    query.extend(("series_id", identifier) for identifier in series_ids)
+    if cursor:
+        query.append(("after_cursor", cursor))
+    return f"{GAMMA_EVENTS_KEYSET_URL}?{urlencode(query)}"
+
+
+def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug: str | None = None) -> dict[str, object] | None:
+    """Reconstrói o 1X2 pelos três contratos binários de um evento da API."""
+    event_slug = str(slug or event.get("slug") or "").lower()
+    if not event_slug:
+        return None
+    prefix = f"{event_slug}-"
     legs: dict[str, tuple[str, float]] = {}
     for market in markets:
         market_slug = str(market.get("slug") or "").lower()
@@ -94,54 +71,74 @@ def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug:
             price = float(prices[0])
         except (IndexError, TypeError, ValueError):
             continue
+        if not 0 < price < 1:
+            continue
         legs[suffix] = (str(market.get("title") or suffix).upper(), price)
     draw_key = next((key for key in legs if key == "draw"), None)
     sides = [(key, value) for key, value in legs.items() if key != draw_key]
-    if draw_key is None or len(sides) != 2:
+    title = str(event.get("title") or "").strip()
+    if draw_key is None or len(sides) != 2 or not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE):
         return None
     (_, (home_code, home)), (_, (away_code, away)) = sides
-    title = str(event.get("title") or "").strip()
-    if not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE):
-        return None
     return {
         "title": title,
         "home": home,
         "draw": legs[draw_key][1],
         "away": away,
         "codes": {"home": home_code, "away": away_code},
-        "scheduled_at": event.get("gameStartTime") or event.get("startDate"),
+        "scheduled_at": event.get("gameStartTime") or event.get("eventStartTime") or event.get("startDate"),
+        "event_slug": event_slug,
     }
 
 
+def games_from_events(events: object) -> list[dict[str, object]]:
+    """Extrai um registro por partida; os mercados já vêm aninhados nos eventos."""
+    if not isinstance(events, list):
+        return []
+    games: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        game = event_odds(event, [market for market in event.get("markets") or [] if isinstance(market, dict)])
+        if not game or game["event_slug"] in seen:
+            continue
+        seen.add(game["event_slug"])
+        games.append(game)
+    return sorted(games, key=lambda game: str(game.get("scheduled_at") or ""))
+
+
 def request_json(url: str, opener) -> object:
-    request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; FUTRanking/1.0)", "Accept": "application/json"})
+    request = Request(url, headers={"User-Agent": "FUTRanking/1.0", "Accept": "application/json"})
     with opener(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
-    request = Request(BRA_GAMES_URL, headers={"User-Agent": "Mozilla/5.0 (compatible; FUTRanking/1.0)", "Accept-Language": "es,en;q=0.8"})
-    with opener(request, timeout=30) as response:
-        markup = response.read().decode("utf-8", "ignore")
-    games = []
-    for slug in extract_game_slugs(markup):
-        try:
-            response = request_json(GAMMA_EVENTS_URL.format(slug), opener)
-            event = response[0] if isinstance(response, list) and response else response
-            if not isinstance(event, dict):
-                continue
-            markets = event.get("markets") or request_json(GAMMA_MARKETS_URL.format(event.get("id")), opener)
-            game = event_odds(event, markets, slug) if isinstance(markets, list) else None
-        except Exception:
-            continue
-        if game:
-            games.append(game)
-    games = sorted(games, key=lambda game: str(game.get("scheduled_at") or "")) or extract_games(markup)
+    """Consulta somente a API: catálogo de esportes e eventos keyset da Série A."""
+    series_ids = series_ids_for_sport(request_json(GAMMA_SPORTS_URL, opener))
+    if not series_ids:
+        raise RuntimeError("a API não informou a série associada ao esporte 'bra'")
+    events: list[object] = []
+    cursor: str | None = None
+    for _ in range(MAX_EVENT_PAGES):
+        page = request_json(keyset_url(series_ids, cursor), opener)
+        if not isinstance(page, dict):
+            break
+        batch = page.get("events")
+        if not isinstance(batch, list) or not batch:
+            break
+        events.extend(batch)
+        cursor = page.get("next_cursor") if isinstance(page.get("next_cursor"), str) else None
+        if not cursor:
+            break
+    games = games_from_events(events)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_url": BRA_GAMES_URL,
+        "source_url": GAMMA_EVENTS_KEYSET_URL,
+        "source": "Polymarket Gamma API · events/keyset",
         "games": games,
-        "error": None if games else "A página foi lida, mas nenhum card 1X2 foi reconhecido.",
+        "error": None if games else "A API respondeu, mas não retornou mercados 1X2 ativos para a Série A.",
     }
 
 
@@ -152,12 +149,18 @@ def main() -> None:
     try:
         payload = fetch_brazil_serie_a_odds()
     except Exception as exc:  # A indisponibilidade da fonte não interrompe o ranking.
-        payload = {"generated_at": datetime.now(timezone.utc).isoformat(), "source_url": BRA_GAMES_URL, "games": [], "error": f"Falha ao consultar a fonte: {exc}"}
+        payload = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "source_url": GAMMA_EVENTS_KEYSET_URL,
+            "source": "Polymarket Gamma API · events/keyset",
+            "games": [],
+            "error": f"Falha ao consultar a API: {exc}",
+        }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[polymarket] Série A: {len(payload['games'])} jogos 1X2 exportados.")
+    print(f"[polymarket][api] Série A: {len(payload['games'])} jogos 1X2 exportados.")
     if payload["error"]:
-        print(f"[polymarket] {payload['error']}")
+        print(f"[polymarket][api] {payload['error']}")
 
 
 if __name__ == "__main__":
