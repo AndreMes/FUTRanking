@@ -316,6 +316,8 @@ def data_sources_for(competition: str) -> list[dict[str, str]]:
         "Campeonato Cearense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-cearense-superbet-serie-a-2026/78058",
         "Campeonato Goiano": "https://globalsportsarchive.com/en/soccer/competition/goianao-novomundo-2026/78214",
         "Campeonato Catarinense": "https://globalsportsarchive.com/en/soccer/competition/catarinense-fort-atacadista-2026/78219",
+        "Copa do Nordeste": "https://globalsportsarchive.com/en/soccer/competition/copa-do-nordeste-2026/77998",
+        "Copa Paulista": "https://globalsportsarchive.com/en/soccer/competition/copa-paulista-rivalo-2026/78196",
     }
     if competition in state_sources:
         sources = [{"period": "2016–atual", "source": "Global Sports Archive", "url": state_sources[competition]}]
