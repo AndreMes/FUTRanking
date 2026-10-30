@@ -24,3 +24,11 @@ def test_extract_games_reads_each_card_not_only_last_card():
         "Santos FC vs. SE Palmeiras",
         "SC Corinthians Paulista vs. Mirassol FC",
     ]
+
+
+def test_extract_games_removes_neighbouring_card_data_from_title():
+    markup = """
+    <div>CRU 59¢ DRAW 23¢ BAH 22¢ EC Vitória vs. Fluminense FC 23:00 $2.63 Vol
+    Vitória 10-8-14 Fluminense 15-9-9 VIT 36¢ DRAW 32¢ FLU 45¢</div>
+    """
+    assert extract_games(markup)[0]["title"] == "EC Vitória vs. Fluminense FC"
