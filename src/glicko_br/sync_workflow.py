@@ -8,7 +8,7 @@ from time import monotonic
 
 from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
 from .database import HOME_ADVANTAGE, connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
-from .espn import EspnClient, EspnError, sync_period
+from .espn import EspnClient, EspnError, sync_fixture_schedule, sync_period
 from .global_sports_archive import GlobalSportsArchiveClient, GlobalSportsArchiveError, bootstrap_national_cups, bootstrap_regional_bridges, bootstrap_serie_d, bootstrap_state_competitions, sync_current as sync_gsa_current
 
 HISTORY_START_YEAR = 2016
@@ -89,6 +89,16 @@ def main() -> None:
                         f'[ESPN][reconciliação] {today.year}: {count} resultados; '
                         f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
                     )
+                # A rotina de resultados olha somente os dias recentes. Uma
+                # passagem curta pela temporada corrente preserva os fixtures
+                # futuros sem refazer o cálculo de partidas já finalizadas.
+                started = monotonic()
+                requests_before = client.request_count
+                fixtures_count = sync_fixture_schedule(database, str(today.year), client=client)
+                print(
+                    f'[ESPN][agenda] {fixtures_count} fixtures futuros encontrados; '
+                    f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                )
             gsa_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
                 (GSA_SERIE_D_BOOTSTRAP_VERSION,),
@@ -146,4 +156,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
