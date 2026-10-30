@@ -100,6 +100,7 @@ def initialise(database: sqlite3.Connection) -> None:
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
             if column not in columns:
                 database.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+    _migrate_matches_competition_check(database)
     _infer_historical_club_states(database)
     provider_merges, provider_duplicates = reconcile_provider_identities(database)
     reconcile_club_identities(database)
@@ -107,6 +108,36 @@ def initialise(database: sqlite3.Connection) -> None:
         print(f"[identidade] {provider_merges} clubes conciliados entre fontes; {provider_duplicates} partidas duplicadas removidas.")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
+
+
+def _migrate_matches_competition_check(database: sqlite3.Connection) -> None:
+    """Amplia o catálogo sem descartar o histórico já persistido.
+
+    SQLite não permite alterar um ``CHECK`` de tabela. Ao incluir uma nova
+    competição, preservamos as partidas existentes, limpamos somente os
+    derivados de rating (que serão reconstruídos) e recriamos a tabela com o
+    catálogo atual. Assim uma expansão de cobertura nunca exige recarga ESPN.
+    """
+    schema = database.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='matches'").fetchone()
+    if schema and COMPETITION_CHECK in str(schema["sql"]):
+        return
+    columns = (
+        "external_id, played_at, competition, matchday, neutral_site, home_advantage, "
+        "venue_country, stage, group_name, home_club_id, away_club_id, home_goals, away_goals"
+    )
+    rows = database.execute(f"SELECT {columns} FROM matches").fetchall()
+    _clear_rating_rebuild_state(database)
+    database.commit()
+    database.execute("PRAGMA foreign_keys = OFF")
+    try:
+        database.execute("DROP TABLE matches")
+        database.execute(MATCHES_TABLE)
+        database.executemany(
+            f"INSERT INTO matches({columns}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [tuple(row) for row in rows],
+        )
+    finally:
+        database.execute("PRAGMA foreign_keys = ON")
 
 
 def _register_alias(database: sqlite3.Connection, alias: str, country: str | None, club_id: int) -> None:
