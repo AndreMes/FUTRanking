@@ -322,6 +322,11 @@ def data_sources_for(competition: str) -> list[dict[str, str]]:
         "Campeonato Alagoano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-alagoano-2026/77986",
         "Campeonato Potiguar": "https://globalsportsarchive.com/en/soccer/competition/campeonato-potiguar-2026/78222",
         "Campeonato Amazonense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-amazonense-serie-a-2026/80555",
+        "Campeonato Paraibano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-paraibano-unipe-primeira-divisao-2026/78216",
+        "Campeonato Maranhense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-maranhense-serie-a-2026/80559",
+        "Campeonato Piauiense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-piauiense-serie-a-2026-2027/80563",
+        "Campeonato Sergipano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-sergipao-superbet-2026/78057",
+        "Campeonato Mato-Grossense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-mato-grossense-1a-divisao-2026/80561",
     }
     if competition in state_sources:
         sources = [{"period": "2016–atual", "source": "Global Sports Archive", "url": state_sources[competition]}]
