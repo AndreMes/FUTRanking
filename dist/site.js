@@ -435,6 +435,23 @@ function eventTeams(title) {
   return parts.length === 2 ? parts : [];
 }
 
+function marketYesPrice(market) {
+  const outcomes = parsedList(market.outcomes);
+  const prices = parsedList(market.outcomePrices).map(Number);
+  const yes = outcomes.findIndex(outcome => /^(yes|sim)$/i.test(String(outcome).trim()));
+  if (yes >= 0 && Number.isFinite(prices[yes])) return prices[yes];
+  // Alguns mercados esportivos chegam com o contrato vencedor como primeiro
+  // outcome, sem o rótulo literal "Yes".
+  return Number.isFinite(prices[0]) ? prices[0] : null;
+}
+
+function shortTeamMatch(team, value) {
+  if (namesMatch(team, value)) return true;
+  const words = normalizedTeamName(team).split(' ').filter(word => word.length >= 3);
+  const text = normalizedTeamName(value);
+  return words.some(word => new RegExp(`\\b${word.slice(0, 3)}`).test(text));
+}
+
 function eventOneXTwo(event) {
   const markets = event.markets || [], teams = eventTeams(event.title);
   for (const market of markets) {
@@ -447,15 +464,19 @@ function eventOneXTwo(event) {
     }
   }
   if (teams.length !== 2) return null;
-  const findYes = matcher => {
-    const market = markets.find(item => matcher(`${item.question || ''} ${item.title || ''} ${item.groupItemTitle || ''}`));
-    if (!market) return null;
-    const outcomes = parsedList(market.outcomes), prices = parsedList(market.outcomePrices).map(Number), yes = outcomes.findIndex(outcome => /^(yes|sim)$/i.test(String(outcome).trim()));
-    return yes >= 0 && Number.isFinite(prices[yes]) ? prices[yes] : null;
+  const contracts = markets.map(market => ({
+    market,
+    price: marketYesPrice(market),
+    text: `${market.question || ''} ${market.title || ''} ${market.groupItemTitle || ''} ${market.slug || ''}`,
+  })).filter(item => item.price != null);
+  const findYes = (matcher, excluded = new Set()) => {
+    const entry = contracts.find(item => !excluded.has(item.market.id) && matcher(item.text));
+    return entry || null;
   };
-  const home = findYes(text => namesMatch(teams[0], text));
-  const draw = findYes(text => /\b(draw|tie|empate)\b/i.test(text));
-  const away = findYes(text => namesMatch(teams[1], text));
+  const drawEntry = findYes(text => /\b(draw|tie|empate)\b/i.test(text));
+  const homeEntry = findYes(text => shortTeamMatch(teams[0], text), new Set(drawEntry ? [drawEntry.market.id] : []));
+  const awayEntry = findYes(text => shortTeamMatch(teams[1], text), new Set([drawEntry, homeEntry].filter(Boolean).map(entry => entry.market.id)));
+  const home = homeEntry?.price, draw = drawEntry?.price, away = awayEntry?.price;
   return home != null && draw != null && away != null ? { home, draw, away } : null;
 }
 
