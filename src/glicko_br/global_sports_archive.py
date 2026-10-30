@@ -63,7 +63,15 @@ BY_NAME = {competition.name: competition for competition in COMPETITIONS}
 # Todas estas competições trazem pontes históricas entre níveis do futebol
 # brasileiro. As duas listas permitem carregar somente uma novidade sem repetir
 # toda a carga estadual já concluída no banco persistente.
-STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS if competition.name not in {"Série C", "Série D", "Copa do Nordeste", "Copa Paulista"})
+# Primeiro lote de estaduais, que já possui seu próprio marcador de carga no
+# workflow. Os estaduais acrescentados depois pertencem ao lote regional abaixo;
+# assim uma instalação nova não os consulta duas vezes durante o bootstrap.
+STATE_COMPETITION_NAMES = (
+    "Campeonato Paulista", "Paulista A2", "Campeonato Carioca", "Campeonato Mineiro",
+    "Campeonato Gaúcho", "Campeonato Paranaense", "Campeonato Baiano",
+    "Campeonato Pernambucano", "Campeonato Cearense", "Campeonato Goiano",
+    "Campeonato Catarinense",
+)
 REGIONAL_BRIDGE_COMPETITION_NAMES = (
     "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
     "Campeonato Potiguar", "Campeonato Amazonense",
@@ -75,6 +83,10 @@ HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_
 
 class GlobalSportsArchiveError(RuntimeError):
     pass
+
+
+class GlobalSportsArchiveSeasonUnavailable(GlobalSportsArchiveError):
+    """A cronologia pública da competição não contém a temporada pedida."""
 
 
 class GlobalSportsArchiveClient:
@@ -285,7 +297,9 @@ def sync_season(database, competition: GsaCompetition, season: int, *, client: G
     catalog_html = client.get(competition.seed_url)
     urls = _season_urls(catalog_html, competition)
     if season not in urls:
-        raise GlobalSportsArchiveError(f"O Global Sports Archive não listou {competition.name} {season}.")
+        raise GlobalSportsArchiveSeasonUnavailable(
+            f"O Global Sports Archive não listou {competition.name} {season}."
+        )
     url = urls[season]
     page = client.get(url)
     rows = {row["external_id"]: row for row in _match_rows(page, competition.name)}
@@ -359,7 +373,16 @@ def bootstrap_competitions(database, names: tuple[str, ...], *, client: GlobalSp
         for season in range(HISTORY_START_YEAR, today.year + 1):
             started = monotonic()
             requests_before = client.request_count
-            count, _ = sync_season(database, competition, season, client=client, full=True)
+            try:
+                count, _ = sync_season(database, competition, season, client=client, full=True)
+            except GlobalSportsArchiveSeasonUnavailable:
+                # A fonte não possui histórico completo para todos os estaduais.
+                # Isto é uma lacuna conhecida da cobertura, não uma falha de coleta:
+                # seguimos para os anos disponíveis e registramos a ausência no log.
+                print(
+                    f"[GSA][histórico] {name} {season}: temporada não listada pela fonte; ignorada."
+                )
+                continue
             competition_total += count
             print(
                 f"[GSA][histórico] {name} {season}: {count} partidas; "
