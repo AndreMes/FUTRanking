@@ -371,7 +371,9 @@ async function polymarketOdds(data) {
     status.textContent = 'Consultando mercados ativos do Polymarket…';
     panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p>`;
     try {
-      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=1000', { headers: { Accept: 'application/json' } });
+      // O Gamma limita cada página a 500 mercados. Uma solicitação acima disso
+      // é recusada antes de qualquer mercado ser devolvido.
+      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500&order=volume_24hr&ascending=false', { headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       const markets = Array.isArray(payload) ? payload : payload.data || [];
@@ -379,8 +381,9 @@ async function polymarketOdds(data) {
       status.textContent = `${rows.length} oportunidade${rows.length === 1 ? '' : 's'} com alfa positivo · atualizado agora`;
       panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${rows.map(row => `<article class="row odds-row"><span class="odds-game"><strong>${html(row.fixture.home_team)} × ${html(row.fixture.away_team)}</strong><small>${html(matchContext(row.fixture))} · ${html(time(row.fixture.scheduled_at))}</small></span><span class="odds-selection">${html(row.selection)}</span><span class="odds-model">${(row.model * 100).toFixed(1)}%</span><span class="odds-market">${(row.market * 100).toFixed(1)}%</span><strong class="odds-alpha">+${(row.alpha * 100).toFixed(1)} p.p.<br><a class="odds-link" href="${html(row.url)}" target="_blank" rel="noopener">ver mercado</a></strong></article>`).join('') || '<p class="empty-list">Nenhum mercado 1X2 ativo pôde ser conciliado com segurança aos fixtures atuais. Isso pode significar que não há mercado para a agenda disponível ou que o Polymarket ainda não publicou a cotação.</p>'}`;
     } catch (error) {
+      const detail = String(error?.message || 'erro de rede').replace(/[^A-Za-z0-9 .:-]/g, '');
       status.textContent = 'Não foi possível atualizar as odds agora.';
-      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><div class="odds-warning"><p>O Polymarket não respondeu à consulta pública neste navegador. Tente atualizar novamente mais tarde.</p></div>`;
+      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><div class="odds-warning"><p>O Polymarket recusou ou não respondeu à consulta pública neste navegador (${html(detail)}). A página não usa proxy para contornar bloqueios geográficos.</p></div>`;
     } finally { button.disabled = false; }
   };
   button.addEventListener('click', load);
