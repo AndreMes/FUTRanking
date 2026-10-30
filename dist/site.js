@@ -522,7 +522,16 @@ async function polymarketOdds() {
         .sort((a, b) => new Date(a.gameStartTime || a.startDate || a.endDate) - new Date(b.gameStartTime || b.startDate || b.endDate));
       const first = events[0] && new Date(events[0].gameStartTime || events[0].startDate || events[0].endDate);
       const round = first ? events.filter(event => Math.abs(new Date(event.gameStartTime || event.startDate || event.endDate) - first) <= 3 * 86400000).slice(0, 12) : [];
-      const rows = round.map(event => ({ event, odds: eventOneXTwo(event) })).filter(row => row.odds);
+      // O endpoint de eventos pode omitir os contratos aninhados. Buscamos os
+      // mercados de cada jogo da rodada explicitamente pelo event_id antes de
+      // interpretar casa/empate/visitante.
+      const detailedRound = await Promise.all(round.map(async event => {
+        if (Array.isArray(event.markets) && event.markets.length) return event;
+        const response = await fetch(`https://gamma-api.polymarket.com/markets?active=true&closed=false&event_id=${encodeURIComponent(event.id)}&limit=100`, { headers: { Accept: 'application/json' } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return { ...event, markets: responseRows(await response.json()) };
+      }));
+      const rows = detailedRound.map(event => ({ event, odds: eventOneXTwo(event) })).filter(row => row.odds);
       status.textContent = `${rows.length} jogo${rows.length === 1 ? '' : 's'} com mercado 1X2 · liga: ${series.label}`;
       panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${rows.map(({ event, odds }) => `<article class="row brazil-odds-row"><span><strong>${html(event.title)}</strong><small>${event.gameStartTime || event.startDate ? html(time(event.gameStartTime || event.startDate)) : 'Horário não informado'}</small></span><strong>${(odds.home * 100).toFixed(1)}%</strong><strong>${(odds.draw * 100).toFixed(1)}%</strong><strong>${(odds.away * 100).toFixed(1)}%</strong></article>`).join('') || '<p class="empty-list">A categoria foi consultada, mas não retornou um mercado 1X2 ativo para a próxima rodada. O próximo passo será mostrar os eventos e contratos brutos devolvidos pela fonte.</p>'}`;
     } catch (error) {
