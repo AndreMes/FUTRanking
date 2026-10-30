@@ -2,7 +2,7 @@ from glicko_br.database import connect, initialise, store_match
 from glicko_br.export_site_data import public_crest_url
 from datetime import date
 
-from glicko_br.global_sports_archive import BY_NAME, HISTORICAL_BRIDGE_COMPETITION_NAMES, REGIONAL_BRIDGE_COMPETITION_NAMES, STATE_COMPETITION_NAMES, _calendar_rounds, _crest_url, _existing_equivalent_id, _match_rows, _season_urls, bootstrap_competitions, sync_season
+from glicko_br.global_sports_archive import BY_NAME, HISTORICAL_BRIDGE_COMPETITION_NAMES, NATIONAL_CUP_COMPETITION_NAMES, REGIONAL_BRIDGE_COMPETITION_NAMES, STATE_COMPETITION_NAMES, _calendar_rounds, _crest_url, _existing_equivalent_id, _match_rows, _season_urls, bootstrap_competitions, sync_season
 
 
 HTML = '''
@@ -107,6 +107,7 @@ def test_historical_bridge_catalog_contains_the_requested_competitions():
         "Campeonato Acreano", "Campeonato Amapaense", "Campeonato Brasiliense", "Campeonato Capixaba",
         "Campeonato Rondoniense", "Campeonato Roraimense", "Campeonato Sul-Mato-Grossense",
         "Campeonato Tocantinense",
+        "Supercopa do Brasil", "CONMEBOL Recopa Sul-Americana",
     }
     assert set(REGIONAL_BRIDGE_COMPETITION_NAMES) == {
         "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
@@ -116,6 +117,9 @@ def test_historical_bridge_catalog_contains_the_requested_competitions():
         "Campeonato Acreano", "Campeonato Amapaense", "Campeonato Brasiliense", "Campeonato Capixaba",
         "Campeonato Rondoniense", "Campeonato Roraimense", "Campeonato Sul-Mato-Grossense",
         "Campeonato Tocantinense",
+    }
+    assert set(NATIONAL_CUP_COMPETITION_NAMES) == {
+        "Supercopa do Brasil", "CONMEBOL Recopa Sul-Americana",
     }
     assert "Copa Paulista" not in STATE_COMPETITION_NAMES
 
