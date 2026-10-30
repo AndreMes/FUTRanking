@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-10-30T12:00:00+00:00",
+  "source_url": "https://polymarket.com/es/sports/bra/games",
+  "games": [
+    {
+      "title": "SC Corinthians Paulista vs. Mirassol FC",
+      "home": 0.55,
+      "draw": 0.27,
+      "away": 0.2,
+      "codes": { "home": "COR1", "away": "MIR" }
+    }
+  ],
+  "error": null
+}
