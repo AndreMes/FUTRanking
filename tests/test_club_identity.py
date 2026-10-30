@@ -78,3 +78,25 @@ def test_reviewed_aliases_from_first_admin_round():
     assert canonical_name("Águia de Marabá FC", "BR") == "Aguia de Maraba"
     assert canonical_name("EC Democrata", "BR") == "Democrata FC"
 
+
+def test_unmergeable_provider_candidate_does_not_clear_processed_ratings():
+    database = connect(":memory:")
+    initialise(database)
+    for name in ("Equipe", "Equipe FC", "Rival", "Rival FC"):
+        database.execute("INSERT INTO clubs(name, country) VALUES (?, 'Brasil')", (name,))
+    ids = {row["name"]: row["id"] for row in database.execute("SELECT id, name FROM clubs")}
+    def insert(external_id, played_at, home, away):
+        database.execute(
+            """INSERT INTO matches(external_id, played_at, competition, home_club_id, away_club_id, home_goals, away_goals)
+               VALUES (?, ?, 'Série C', ?, ?, 1, 0)""",
+            (external_id, played_at, ids[home], ids[away]),
+        )
+    insert("espn:one", "2026-01-01T12:00:00-03:00", "Equipe", "Rival")
+    insert("gsa:one", "2026-01-01T12:00:00-03:00", "Equipe FC", "Rival FC")
+    insert("other:one", "2026-01-02T12:00:00-03:00", "Equipe", "Equipe FC")
+    insert("other:two", "2026-01-03T12:00:00-03:00", "Rival", "Rival FC")
+    database.execute("INSERT INTO processed_matches(external_id, processed_at) VALUES ('espn:one', '2026-01-01')")
+
+    assert reconcile_provider_identities(database) == (0, 0)
+    assert database.execute("SELECT COUNT(*) FROM processed_matches").fetchone()[0] == 1
+
