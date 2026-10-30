@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, expected_score, update
 from .competitions import BRAZILIAN_STATE_BY_COMPETITION, COMPETITION_NAMES
-from .club_identity import alias_key, canonical_name, provider_match_key
+from .club_identity import alias_key, canonical_name, must_remain_separate, provider_match_key
 from .neutral_sites import is_neutral_event
 
 COMPETITIONS = COMPETITION_NAMES
@@ -274,7 +274,10 @@ def reconcile_provider_identities(database: sqlite3.Connection) -> tuple[int, in
             source_key = (provider_match_key(str(source["home_name"])), provider_match_key(str(source["away_name"])))
             for target in espn:
                 target_key = (provider_match_key(str(target["home_name"])), provider_match_key(str(target["away_name"])))
-                if source_key == target_key:
+                if source_key == target_key and not (
+                    must_remain_separate(str(source["home_name"]), str(target["home_name"]), "BR")
+                    or must_remain_separate(str(source["away_name"]), str(target["away_name"]), "BR")
+                ):
                     merges.extend(((int(source["home_id"]), int(target["home_id"])), (int(source["away_id"]), int(target["away_id"]))))
                     break
     merges = list(dict.fromkeys(pair for pair in merges if pair[0] != pair[1]))
@@ -332,7 +335,10 @@ def identity_candidates(database: sqlite3.Connection) -> list[dict[str, object]]
             groups[("BR", str(row["state"] or "?"), " ".join(tokens))].append(str(row["name"]))
     return [
         {"state": state, "key": key, "clubs": sorted(names)}
-        for (_, state, key), names in groups.items() if len(set(names)) > 1
+        for (_, state, key), names in groups.items()
+        if len(set(names)) > 1 and not (
+            len(set(names)) == 2 and must_remain_separate(*sorted(set(names)), "BR")
+        )
     ]
 
 
