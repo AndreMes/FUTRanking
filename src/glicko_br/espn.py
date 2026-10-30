@@ -198,8 +198,9 @@ def _stored_club_country(database, name: str) -> str | None:
 
 def _enrich_countries(database, client: EspnClient, league: str, item: dict[str, str]) -> None:
     """Consulta a ESPN somente para clubes sem país persistido localmente."""
-    # Ligas nacionais já determinam o país do clube: não buscamos um perfil por
-    # equipe durante a carga, preservando chamadas para novas competições.
+    # Todas as ligas ``bra.*`` acompanhadas são domésticas. Inferir Brasil pela
+    # própria competição evita uma chamada de perfil por clube — especialmente
+    # importante na carga inicial dos estaduais.
     league_country = COUNTRY_BY_LEAGUE_PREFIX.get(league.split(".", 1)[0])
     if league_country:
         item["home_country"] = league_country
@@ -240,3 +241,32 @@ def sync_period(database, period: str, *, leagues: dict[str, str] = LEAGUES, cli
                     fixtures.append(fixture)
         replace_fixtures(database, fixtures, replace=False)
     return imported
+
+
+def sync_fixture_schedule(database, season: str, *, leagues: dict[str, str] = LEAGUES, client: EspnClient | None = None) -> int:
+    """Atualiza somente a agenda pendente da temporada, sem reimportar placares.
+
+    A coleta incremental de resultados consulta apenas os últimos dias. Já a
+    agenda precisa de uma leitura da temporada corrente para que jogos futuros
+    continuem disponíveis no site, nas simulações e na comparação de odds.
+    """
+    client = client or EspnClient()
+    fixtures_found = 0
+    for league, competition in leagues.items():
+        response = client.get_scoreboard(league, dates=season)
+        payload, request_path = response if len(response) == 2 else (response[0], response[-1])
+        store_source_payload(
+            database,
+            "espn-fixtures",
+            request_path,
+            json.dumps({"league": league, "season": season, "event_count": len(payload["events"])}, separators=(",", ":")),
+        )
+        fixtures = []
+        for event in payload["events"]:
+            fixture = event_to_fixture(event, competition)
+            if fixture is not None:
+                _enrich_countries(database, client, league, fixture)
+                fixtures.append(fixture)
+        replace_fixtures(database, fixtures, replace=False)
+        fixtures_found += len(fixtures)
+    return fixtures_found
