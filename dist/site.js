@@ -56,6 +56,9 @@ document.head.append(oddsStyle);
 const oddsTeamsStyle = document.createElement('style');
 oddsTeamsStyle.textContent = '.odds-teams{display:flex;align-items:center;gap:8px;font-weight:850}.odds-teams .crest{width:27px;height:27px;object-fit:contain}.odds-vs{color:#5b6f68;font-size:.75rem;font-weight:800}';
 document.head.append(oddsTeamsStyle);
+const oddsComparisonStyle = document.createElement('style');
+oddsComparisonStyle.textContent = '.odds-mode{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-mode:hover{background:#064b36}.odds-mode:disabled{opacity:.55;cursor:wait}.odds-alpha.negative{color:#a13d34}.odds-alpha.positive{color:#075c42}.odds-mode-note{margin-top:7px;color:#5b6f68;font-size:.78rem}@media(max-width:700px){.odds-mode{width:100%}}';
+document.head.append(oddsComparisonStyle);
 const adminStyle = document.createElement('style');
 adminStyle.textContent = '.admin-login{max-width:430px;margin:42px auto;padding:26px;border:1px solid #d8d0c1;border-radius:16px;background:#fffdf8}.admin-login h1{font-size:2rem}.admin-login label{display:grid;gap:6px;margin:14px 0;color:#5b6f68;font-size:.8rem;font-weight:800}.admin-login input,.manual-merge input{padding:11px 12px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.admin-login button,.admin-action{border:0;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-weight:850;cursor:pointer}.admin-action.secondary{background:#fffdf8;color:#10231d;border:1px solid #d8d0c1}.admin-action.warn{background:#7c5400}.admin-note{padding:15px 17px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.88rem}.admin-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0}.admin-toolbar span{color:#5b6f68;font-size:.85rem}.identity-card,.manual-merge{margin:14px 0;padding:18px;border:1px solid #d8d0c1;border-radius:14px;background:#fffdf8}.identity-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.identity-card h2,.manual-merge h2{margin:0;font-size:1.08rem}.identity-clubs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:15px 0}.identity-club{display:flex;align-items:center;gap:9px;padding:11px;border:1px solid #e6dfd2;border-radius:10px}.identity-club .crest{width:34px;height:34px;flex-basis:34px}.identity-club small{display:block;color:#5b6f68;margin-top:2px}.identity-actions{display:flex;gap:8px;flex-wrap:wrap}.identity-status,.identity-impact{padding:5px 8px;border-radius:99px;background:#eef3ea;color:#075c42;font-size:.74rem;font-weight:850}.identity-status.pending{background:#f5ead0;color:#7c5400}.identity-impact{background:#edf2eb;color:#34473f;white-space:nowrap}.manual-merge form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:14px}.manual-merge .manual-feedback{grid-column:1/-1;margin:0;color:#7c5400;font-size:.84rem}.manual-merge-list{margin:14px 0 0;padding-left:20px;color:#34473f}.manual-merge-list button{margin-left:8px;border:0;background:none;color:#9a352d;font:inherit;font-weight:800;cursor:pointer}@media(max-width:650px){.admin-login{margin:24px 0;padding:20px}.identity-card{padding:15px}.manual-merge form{grid-template-columns:1fr}.manual-merge .admin-action{width:max-content}}';
 document.head.append(adminStyle);
@@ -502,20 +505,55 @@ function brazilSerieASeries(sports) {
 
 async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds da Série A', 'Teste de fonte');
-  el('#content').innerHTML = `<p class="odds-intro">Teste isolado da fonte: jogos da rodada vigente do Campeonato Brasileiro e as probabilidades 1X2 retornadas pelo Polymarket. Não há comparação com o FUTRanking nesta etapa.</p><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow diretamente da página pública do Brasileirão no Polymarket e servidas pelo próprio FUTRanking. Isso evita que bloqueios do navegador impeçam a leitura.</aside>`;
-  const status = el('.odds-status'), panel = el('.odds-panel');
+  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente do Campeonato Brasileiro, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow diretamente da página pública do Brasileirão no Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
+  const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode');
   const teamDisplay = name => {
     const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
     return `${known?.crest ? `<img class="crest" src="${html(known.crest)}" alt="" loading="lazy">` : ''}<span>${html(name)}</span>`;
   };
+  const splitTeams = game => String(game.title || '').split(/\s+vs\.?\s+/i).map(part => part.trim());
+  const displayGame = (home, away) => `<span class="odds-teams">${teamDisplay(home)}<span class="odds-vs">×</span>${teamDisplay(away)}</span>`;
+  const fixtureFor = game => {
+    const [home, away] = splitTeams(game);
+    if (!home || !away) return null;
+    return (data.fixtures || []).find(fixture =>
+      namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
+    ) || null;
+  };
+  let games = [], collectedAt = '', comparing = false;
+  const renderSource = () => {
+    status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
+    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>Esta coleta não encontrou jogos 1X2.</p></div>`}`;
+  };
+  const renderComparison = () => {
+    const comparisons = games.flatMap(game => {
+      const fixture = fixtureFor(game);
+      if (!fixture) return [];
+      return [
+        { selection: fixture.home_team, model: Number(fixture.home_favoritism) / 100, market: Number(game.home) },
+        { selection: 'Empate', model: Number(fixture.draw_probability) / 100, market: Number(game.draw) },
+        { selection: fixture.away_team, model: Number(fixture.away_favoritism) / 100, market: Number(game.away) },
+      ].filter(row => Number.isFinite(row.model) && Number.isFinite(row.market)).map(row => ({ ...row, fixture, alpha: row.model - row.market }));
+    }).sort((left, right) => right.alpha - left.alpha || String(left.fixture.home_team).localeCompare(String(right.fixture.home_team), 'pt-BR'));
+    const gamesMatched = new Set(comparisons.map(row => `${row.fixture.home_team}|${row.fixture.away_team}`)).size;
+    status.textContent = `${gamesMatched} jogo${gamesMatched === 1 ? '' : 's'} conciliado${gamesMatched === 1 ? '' : 's'} · ${comparisons.length} resultado${comparisons.length === 1 ? '' : 's'} 1X2 · alfa = modelo − Polymarket`;
+    panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${comparisons.map(row => `<article class="row odds-row"><span class="odds-game">${displayGame(row.fixture.home_team, row.fixture.away_team)}<small>${html(row.fixture.competition || 'Série A')}</small></span><span class="odds-selection">${html(row.selection)}</span><strong class="odds-model">${(row.model * 100).toFixed(1)}%</strong><strong class="odds-market">${(row.market * 100).toFixed(1)}%</strong><strong class="odds-alpha ${row.alpha >= 0 ? 'positive' : 'negative'}">${row.alpha >= 0 ? '+' : ''}${(row.alpha * 100).toFixed(1)} p.p.</strong></article>`).join('') || `<div class="odds-warning"><p>Não há fixture publicado que coincida com os ${games.length} jogo${games.length === 1 ? '' : 's'} desta coleta. Quando a agenda correspondente estiver no arquivo do ranking, a comparação aparecerá aqui.</p></div>`}`;
+  };
+  mode.addEventListener('click', () => {
+    comparing = !comparing;
+    mode.textContent = comparing ? 'Ver odds da fonte' : 'Comparar com o modelo';
+    comparing ? renderComparison() : renderSource();
+  });
   const load = async () => {
     status.textContent = 'Carregando a última coleta publicada…';
     try {
       const response = await fetch(`./data/polymarket-bra.json?v=${Date.now()}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const payload = await response.json(), rows = Array.isArray(payload.games) ? payload.games : [];
-      status.textContent = `${rows.length} jogo${rows.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${payload.generated_at ? time(payload.generated_at) : 'horário não informado'}`;
-      panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${rows.map(game => { const [home, away] = String(game.title || '').split(/\s+vs\.?\s+/i); return `<article class="row brazil-odds-row"><span><span class="odds-teams">${teamDisplay(home || game.title)}${away ? `<span class="odds-vs">×</span>${teamDisplay(away)}` : ''}</span><small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(payload.error || 'A última coleta não encontrou jogos 1X2.')}</p></div>`}`;
+      const payload = await response.json();
+      games = Array.isArray(payload.games) ? payload.games : [];
+      collectedAt = payload.generated_at ? time(payload.generated_at) : 'horário não informado';
+      mode.disabled = false;
+      renderSource();
     } catch (error) {
       status.textContent = 'Não foi possível carregar a coleta publicada.';
       panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><div class="odds-warning"><p>Consulta de teste indisponível: ${html(String(error?.message || 'erro de rede'))}.</p></div>`;
