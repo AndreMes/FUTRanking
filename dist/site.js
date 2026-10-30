@@ -373,7 +373,18 @@ async function polymarketOdds(data) {
     try {
       // Uma única página curta, ordenada pelo encerramento mais próximo: a
       // comparação prioriza jogos iminentes e evita varrer o catálogo inteiro.
-      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&order=end_date&ascending=true', { headers: { Accept: 'application/json' } });
+      // O Gamma usa nomes de campo em camelCase neste endpoint. Se o provedor
+      // mudar novamente a ordenação, repetimos uma única vez com os parâmetros
+      // mínimos documentados — sem ampliar o número de mercados consultados.
+      const endpoints = [
+        'https://gamma-api.polymarket.com/markets?active=true&closed=false&archived=false&limit=100&order=endDate&ascending=true',
+        'https://gamma-api.polymarket.com/markets?active=true&closed=false&archived=false&limit=100',
+      ];
+      let response;
+      for (const endpoint of endpoints) {
+        response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+        if (response.ok || response.status !== 422) break;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       const markets = Array.isArray(payload) ? payload : payload.data || [];
