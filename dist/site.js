@@ -377,8 +377,8 @@ async function polymarketOdds(data) {
       // mudar novamente a ordenação, repetimos uma única vez com os parâmetros
       // mínimos documentados — sem ampliar o número de mercados consultados.
       const endpoints = [
-        'https://gamma-api.polymarket.com/markets?active=true&closed=false&archived=false&limit=100&order=endDate&ascending=true',
-        'https://gamma-api.polymarket.com/markets?active=true&closed=false&archived=false&limit=100',
+        'https://gamma-api.polymarket.com/events?active=true&closed=false&tag_slug=soccer&limit=100&order=endDate&ascending=true',
+        'https://gamma-api.polymarket.com/events?active=true&closed=false&tag_slug=soccer&limit=100',
       ];
       let response;
       for (const endpoint of endpoints) {
@@ -387,7 +387,13 @@ async function polymarketOdds(data) {
       }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
-      const markets = Array.isArray(payload) ? payload : payload.data || [];
+      const events = Array.isArray(payload) ? payload : payload.data || [];
+      // Em esportes, um evento contém os mercados dos seus possíveis
+      // resultados. Herdamos o horário e o link do evento para conciliar o
+      // mercado 1X2 com o fixture do FUTRanking.
+      const markets = events.flatMap(event => Array.isArray(event.markets)
+        ? event.markets.map(market => ({ ...market, eventSlug: event.slug, gameStartTime: market.gameStartTime || event.startDate || market.startDate }))
+        : [event]);
       const rows = matchedPolymarketOutcomes(data.fixtures || [], markets).filter(row => row.alpha > 0);
       status.textContent = `${rows.length} oportunidade${rows.length === 1 ? '' : 's'} com alfa positivo · atualizado agora`;
       panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${rows.map(row => `<article class="row odds-row"><span class="odds-game"><strong>${html(row.fixture.home_team)} × ${html(row.fixture.away_team)}</strong><small>${html(matchContext(row.fixture))} · ${html(time(row.fixture.scheduled_at))}</small></span><span class="odds-selection">${html(row.selection)}</span><span class="odds-model">${(row.model * 100).toFixed(1)}%</span><span class="odds-market">${(row.market * 100).toFixed(1)}%</span><strong class="odds-alpha">+${(row.alpha * 100).toFixed(1)} p.p.<br><a class="odds-link" href="${html(row.url)}" target="_blank" rel="noopener">ver mercado</a></strong></article>`).join('') || '<p class="empty-list">Nenhum mercado 1X2 ativo pôde ser conciliado com segurança aos fixtures atuais. Isso pode significar que não há mercado para a agenda disponível ou que o Polymarket ainda não publicou a cotação.</p>'}`;
