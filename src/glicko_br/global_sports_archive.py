@@ -66,6 +66,8 @@ COMPETITIONS = (
     GsaCompetition("Campeonato Roraimense", "campeonato-roraimense", f"{BASE_URL}/en/soccer/competition/campeonato-roraimense-giro-agro-2026/80570"),
     GsaCompetition("Campeonato Sul-Mato-Grossense", "campeonato-sul-mato-grossense", f"{BASE_URL}/en/soccer/competition/campeonato-sul-mato-grossense-serie-a-2026/80560"),
     GsaCompetition("Campeonato Tocantinense", "campeonato-tocantinense", f"{BASE_URL}/en/soccer/competition/campeonato-tocantinense-1a-divisao-2026/80571"),
+    GsaCompetition("Supercopa do Brasil", "supercopa-do-brasil", f"{BASE_URL}/en/soccer/competition/supercopa-rei-superbet-2026/77028"),
+    GsaCompetition("CONMEBOL Recopa Sul-Americana", "conmebol-recopa-sudamericana", f"{BASE_URL}/en/soccer/competition/conmebol-recopa-sudamericana-2026/78187"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
 # Todas estas competições trazem pontes históricas entre níveis do futebol
@@ -89,7 +91,13 @@ REGIONAL_BRIDGE_COMPETITION_NAMES = (
     "Campeonato Capixaba", "Campeonato Rondoniense", "Campeonato Roraimense",
     "Campeonato Sul-Mato-Grossense", "Campeonato Tocantinense",
 )
-HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES
+NATIONAL_CUP_COMPETITION_NAMES = (
+    "Supercopa do Brasil",
+    "CONMEBOL Recopa Sul-Americana",
+)
+HISTORICAL_BRIDGE_COMPETITION_NAMES = (
+    STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES + NATIONAL_CUP_COMPETITION_NAMES
+)
 
 
 class GlobalSportsArchiveError(RuntimeError):
@@ -416,6 +424,11 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
 def bootstrap_regional_bridges(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
     """Carrega apenas as novas copas regionais, sem repetir os estaduais."""
     return bootstrap_competitions(database, REGIONAL_BRIDGE_COMPETITION_NAMES, client=client, today=today)
+
+
+def bootstrap_national_cups(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Carrega copas de poucos jogos que conectam os campeões nacionais e continentais."""
+    return bootstrap_competitions(database, NATIONAL_CUP_COMPETITION_NAMES, client=client, today=today)
 
 
 def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | None = None, full: bool = False) -> tuple[int, int]:
