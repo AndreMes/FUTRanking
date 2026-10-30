@@ -359,6 +359,39 @@ function matchedPolymarketOutcomes(fixtures, markets) {
       rows.push({ fixture, selection: selection.label, model: selection.model, market: marketProbability, alpha: selection.model - marketProbability, url: marketUrl(market) });
     });
   }
+  // O Polymarket também representa uma partida como três mercados binários
+  // independentes (mandante vence, empate, visitante vence). Reconstruímos o
+  // 1X2 apenas quando os três pertencem ao mesmo evento e o título confirma os
+  // dois clubes; isso evita ligar mercados de partidas distintas.
+  const eventGroups = new Map();
+  markets.forEach(market => {
+    const outcomes = parsedList(market.outcomes), prices = parsedList(market.outcomePrices).map(Number);
+    const yesIndex = outcomes.findIndex(outcome => /^(yes|sim)$/i.test(String(outcome).trim()));
+    const eventKey = market.eventSlug || market.eventId || market.slug;
+    if (!eventKey || outcomes.length !== 2 || prices.length !== 2 || yesIndex < 0 || !Number.isFinite(prices[yesIndex])) return;
+    if (!eventGroups.has(eventKey)) eventGroups.set(eventKey, []);
+    eventGroups.get(eventKey).push({ market, yesPrice: prices[yesIndex] });
+  });
+  for (const group of eventGroups.values()) {
+    const representative = group[0].market;
+    const eventText = group.map(({ market }) => `${market.eventTitle || ''} ${market.question || market.title || ''}`).join(' ');
+    const fixture = futureFixtures.find(candidate => {
+      const scheduled = new Date(candidate.scheduled_at).getTime(), started = new Date(marketStart(representative)).getTime();
+      const dateMatches = !Number.isFinite(started) || Math.abs(started - scheduled) <= 40 * 60 * 60 * 1000;
+      return dateMatches && namesMatch(candidate.home_team, eventText) && namesMatch(candidate.away_team, eventText);
+    });
+    if (!fixture) continue;
+    const describe = market => `${market.question || ''} ${market.title || ''} ${market.groupItemTitle || ''}`;
+    const home = group.find(({ market }) => namesMatch(fixture.home_team, describe(market)));
+    const draw = group.find(({ market }) => /\b(draw|tie|empate)\b/i.test(describe(market)));
+    const away = group.find(({ market }) => namesMatch(fixture.away_team, describe(market)));
+    if (!home || !draw || !away || new Set([home.market.id, draw.market.id, away.market.id]).size !== 3) continue;
+    [
+      { entry: home, label: fixture.home_team, model: Number(fixture.home_favoritism) / 100 },
+      { entry: draw, label: 'Empate', model: Number(fixture.draw_probability) / 100 },
+      { entry: away, label: fixture.away_team, model: Number(fixture.away_favoritism) / 100 },
+    ].forEach(selection => rows.push({ fixture, selection: selection.label, model: selection.model, market: selection.entry.yesPrice, alpha: selection.model - selection.entry.yesPrice, url: marketUrl(selection.entry.market) }));
+  }
   return rows.sort((a, b) => b.alpha - a.alpha || new Date(a.fixture.scheduled_at) - new Date(b.fixture.scheduled_at));
 }
 
@@ -392,11 +425,13 @@ async function polymarketOdds(data) {
       // resultados. Herdamos o horário e o link do evento para conciliar o
       // mercado 1X2 com o fixture do FUTRanking.
       const markets = events.flatMap(event => Array.isArray(event.markets)
-        ? event.markets.map(market => ({ ...market, eventSlug: event.slug, gameStartTime: market.gameStartTime || event.startDate || market.startDate }))
+        ? event.markets.map(market => ({ ...market, eventSlug: event.slug, eventTitle: event.title, gameStartTime: market.gameStartTime || event.startDate || market.startDate }))
         : [event]);
-      const rows = matchedPolymarketOutcomes(data.fixtures || [], markets).filter(row => row.alpha > 0);
-      status.textContent = `${rows.length} oportunidade${rows.length === 1 ? '' : 's'} com alfa positivo · atualizado agora`;
-      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${rows.map(row => `<article class="row odds-row"><span class="odds-game"><strong>${html(row.fixture.home_team)} × ${html(row.fixture.away_team)}</strong><small>${html(matchContext(row.fixture))} · ${html(time(row.fixture.scheduled_at))}</small></span><span class="odds-selection">${html(row.selection)}</span><span class="odds-model">${(row.model * 100).toFixed(1)}%</span><span class="odds-market">${(row.market * 100).toFixed(1)}%</span><strong class="odds-alpha">+${(row.alpha * 100).toFixed(1)} p.p.<br><a class="odds-link" href="${html(row.url)}" target="_blank" rel="noopener">ver mercado</a></strong></article>`).join('') || '<p class="empty-list">Nenhum mercado 1X2 ativo pôde ser conciliado com segurança aos fixtures atuais. Isso pode significar que não há mercado para a agenda disponível ou que o Polymarket ainda não publicou a cotação.</p>'}`;
+      const matched = matchedPolymarketOutcomes(data.fixtures || [], markets), rows = matched;
+      const matchedGames = new Set(matched.map(row => `${row.fixture.external_id}`)).size;
+      status.textContent = `${matchedGames} jogo${matchedGames === 1 ? '' : 's'} conciliado${matchedGames === 1 ? '' : 's'} · ${rows.length} resultado${rows.length === 1 ? '' : 's'} 1X2 exibido${rows.length === 1 ? '' : 's'} · atualizado agora`;
+      const emptyMessage = 'Nenhum mercado 1X2 ativo pôde ser conciliado com segurança aos fixtures atuais. Isso pode significar que não há mercado para a agenda disponível ou que o Polymarket ainda não publicou a cotação.';
+      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${rows.map(row => `<article class="row odds-row"><span class="odds-game"><strong>${html(row.fixture.home_team)} × ${html(row.fixture.away_team)}</strong><small>${html(matchContext(row.fixture))} · ${html(time(row.fixture.scheduled_at))}</small></span><span class="odds-selection">${html(row.selection)}</span><span class="odds-model">${(row.model * 100).toFixed(1)}%</span><span class="odds-market">${(row.market * 100).toFixed(1)}%</span><strong class="odds-alpha ${row.alpha >= 0 ? 'positive' : 'negative'}">${row.alpha >= 0 ? '+' : ''}${(row.alpha * 100).toFixed(1)} p.p.<br><a class="odds-link" href="${html(row.url)}" target="_blank" rel="noopener">ver mercado</a></strong></article>`).join('') || `<p class="empty-list">${emptyMessage}</p>`}`;
     } catch (error) {
       const detail = String(error?.message || 'erro de rede').replace(/[^A-Za-z0-9 .:-]/g, '');
       status.textContent = 'Não foi possível atualizar as odds agora.';
