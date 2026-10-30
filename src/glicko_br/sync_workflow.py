@@ -15,7 +15,7 @@ HISTORY_START_YEAR = 2016
 ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}-home-{int(HOME_ADVANTAGE)}"
 GSA_SERIE_D_BOOTSTRAP_VERSION = "global-sports-archive-serie-d-2016-v1"
 GSA_STATE_BOOTSTRAP_VERSION = "global-sports-archive-state-leagues-2016-v1"
-GSA_REGIONAL_BRIDGES_BOOTSTRAP_VERSION = "global-sports-archive-regional-bridges-2016-v2"
+GSA_REGIONAL_BRIDGES_BOOTSTRAP_VERSION = "global-sports-archive-regional-bridges-2016-v3"
 
 
 def reset_match_data(database) -> None:
