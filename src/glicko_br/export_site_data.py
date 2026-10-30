@@ -246,6 +246,21 @@ def exported_identity_audit(database) -> list[dict[str, object]]:
     return output
 
 
+def exported_admin_clubs(database) -> list[dict[str, object]]:
+    """Catálogo completo para indicar uma fusão ainda não detectada."""
+    rows = database.execute(
+        """SELECT c.name, c.country, c.state, c.crest_url, COUNT(m.external_id) AS games
+           FROM clubs c LEFT JOIN matches m ON c.id IN (m.home_club_id, m.away_club_id)
+           GROUP BY c.id ORDER BY c.name COLLATE NOCASE"""
+    ).fetchall()
+    clubs = []
+    for row in rows:
+        club = dict(row)
+        club["crest_url"] = public_crest_url(club.get("crest_url"))
+        clubs.append(club)
+    return clubs
+
+
 def exported_data_health(database) -> list[dict[str, object]]:
     """Resume a cobertura efetivamente persistida, por competição.
 
@@ -428,6 +443,7 @@ def main() -> None:
         "fixtures": fixtures,
         "data_health": health,
         "identity_audit": exported_identity_audit(database),
+        "admin_clubs": exported_admin_clubs(database),
         "simulation": exported_simulation(database, ranking, fixtures),
     }
     output = Path(args.output)
