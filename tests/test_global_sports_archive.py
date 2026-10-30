@@ -1,6 +1,8 @@
 from glicko_br.database import connect, initialise, store_match
 from glicko_br.export_site_data import public_crest_url
-from glicko_br.global_sports_archive import BY_NAME, HISTORICAL_BRIDGE_COMPETITION_NAMES, REGIONAL_BRIDGE_COMPETITION_NAMES, STATE_COMPETITION_NAMES, _calendar_rounds, _crest_url, _existing_equivalent_id, _match_rows, _season_urls, sync_season
+from datetime import date
+
+from glicko_br.global_sports_archive import BY_NAME, HISTORICAL_BRIDGE_COMPETITION_NAMES, REGIONAL_BRIDGE_COMPETITION_NAMES, STATE_COMPETITION_NAMES, _calendar_rounds, _crest_url, _existing_equivalent_id, _match_rows, _season_urls, bootstrap_competitions, sync_season
 
 
 HTML = '''
@@ -71,6 +73,27 @@ def test_gsa_season_catalog_accepts_sponsor_renames():
         2016: "https://globalsportsarchive.com/en/soccer/competition/paulistao-itaipava-2016/11212",
         2026: "https://globalsportsarchive.com/en/soccer/competition/paulistao-casas-bahia-2026/78189",
     }
+
+
+def test_historical_bootstrap_skips_a_season_absent_from_the_public_catalog():
+    competition = BY_NAME["Campeonato Maranhense"]
+    catalog = '<a href="https://globalsportsarchive.com/en/soccer/competition/maranhense-2017/2">2017</a>'
+
+    class Client:
+        request_count = 0
+
+        def get(self, url):
+            return catalog if url == competition.seed_url else HTML
+
+        def get_gameweek(self, **kwargs):
+            raise AssertionError("A página de teste não possui calendário paginado.")
+
+    database = connect(":memory:")
+    initialise(database)
+
+    assert bootstrap_competitions(
+        database, (competition.name,), client=Client(), today=date(2017, 12, 31)
+    ) == 1
 
 
 def test_historical_bridge_catalog_contains_the_requested_competitions():
