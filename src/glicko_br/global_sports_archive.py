@@ -47,9 +47,16 @@ COMPETITIONS = (
     GsaCompetition("Campeonato Cearense", "campeonato-cearense", f"{BASE_URL}/en/soccer/competition/campeonato-cearense-superbet-serie-a-2026/78058"),
     GsaCompetition("Campeonato Goiano", "campeonato-goiano", f"{BASE_URL}/en/soccer/competition/goianao-novomundo-2026/78214"),
     GsaCompetition("Campeonato Catarinense", "campeonato-catarinense", f"{BASE_URL}/en/soccer/competition/catarinense-fort-atacadista-2026/78219"),
+    GsaCompetition("Copa do Nordeste", "copa-do-nordeste", f"{BASE_URL}/en/soccer/competition/copa-do-nordeste-2026/77998"),
+    GsaCompetition("Copa Paulista", "copa-paulista", f"{BASE_URL}/en/soccer/competition/copa-paulista-rivalo-2026/78196"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
-STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS if competition.name not in {"Série C", "Série D"})
+# Todas estas competições trazem pontes históricas entre níveis do futebol
+# brasileiro. As duas listas permitem carregar somente uma novidade sem repetir
+# toda a carga estadual já concluída no banco persistente.
+STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS if competition.name not in {"Série C", "Série D", "Copa do Nordeste", "Copa Paulista"})
+REGIONAL_BRIDGE_COMPETITION_NAMES = ("Copa do Nordeste", "Copa Paulista")
+HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES
 
 
 class GlobalSportsArchiveError(RuntimeError):
@@ -319,8 +326,8 @@ def bootstrap_serie_d(database, *, client: GlobalSportsArchiveClient, today: dat
     return total
 
 
-def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
-    """Importa todos os estaduais rastreados desde o início da amostra.
+def bootstrap_competitions(database, names: tuple[str, ...], *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Importa competições brasileiras rastreadas desde o início da amostra.
 
     Cada página de competição resolve sua cronologia localmente, de modo que a
     carga suporta patrocínios diferentes em temporadas antigas. A marca de
@@ -329,7 +336,7 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
     """
     today = today or date.today()
     total = 0
-    for name in STATE_COMPETITION_NAMES:
+    for name in names:
         competition = BY_NAME[name]
         competition_total = 0
         competition_started = monotonic()
@@ -353,16 +360,27 @@ def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient,
     return total
 
 
+def bootstrap_state_competitions(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Mantém a carga histórica original dos estaduais já selecionados."""
+    return bootstrap_competitions(database, STATE_COMPETITION_NAMES, client=client, today=today)
+
+
+def bootstrap_regional_bridges(database, *, client: GlobalSportsArchiveClient, today: date | None = None) -> int:
+    """Carrega apenas as novas copas regionais, sem repetir os estaduais."""
+    return bootstrap_competitions(database, REGIONAL_BRIDGE_COMPETITION_NAMES, client=client, today=today)
+
+
 def sync_current(database, *, client: GlobalSportsArchiveClient, today: date | None = None, full: bool = False) -> tuple[int, int]:
-    """Atualiza as competições em calendário, sem consultar estaduais inativos."""
+    """Atualiza as competições em calendário, sem consultar copas inativas."""
     today = today or date.today()
     total = reused = 0
-    # Os estaduais selecionados ocorrem no primeiro semestre. Fora dele, a
-    # carga histórica já os consolidou; mantemos apenas C/D para não gastar
-    # consultas diárias em torneios encerrados.
-    tracked = COMPETITIONS if today.month <= 6 else tuple(
-        competition for competition in COMPETITIONS if competition.name in {"Série C", "Série D"}
-    )
+    # Estaduais e a Copa do Nordeste se concentram no primeiro semestre. A
+    # Copa Paulista segue até o segundo, mantendo uma ponte ativa no interior
+    # de São Paulo sem fazer chamadas desnecessárias às copas já encerradas.
+    active_names = {"Série C", "Série D", "Copa Paulista"}
+    if today.month <= 6:
+        active_names.update(HISTORICAL_BRIDGE_COMPETITION_NAMES)
+    tracked = tuple(competition for competition in COMPETITIONS if competition.name in active_names)
     for competition in tracked:
         started = monotonic()
         requests_before = client.request_count
