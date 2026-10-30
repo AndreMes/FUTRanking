@@ -13,7 +13,8 @@ const countryLabel = country => String(country || '').replace(/^[A-Z]{2}\s+/, ''
 const countryCode = country => ({ Argentina: 'ar', Bolívia: 'bo', Bolivia: 'bo', Brasil: 'br', Brazil: 'br', Chile: 'cl', Colômbia: 'co', Colombia: 'co', Equador: 'ec', Ecuador: 'ec', Paraguai: 'py', Paraguay: 'py', Peru: 'pe', Perú: 'pe', Uruguai: 'uy', Uruguay: 'uy', Venezuela: 've' }[countryLabel(country)] || (String(country || '').match(/^([A-Z]{2})\b/) || [])[1]?.toLowerCase());
 const countryFlag = country => { const code = countryCode(country), label = countryLabel(country); return code ? `<img class="country-flag" src="https://flagcdn.com/w40/${code}.png" srcset="https://flagcdn.com/w80/${code}.png 2x" width="20" height="15" alt="Bandeira do ${label}">` : ''; };
 const impact = value => `<span class="impact ${value >= 0 ? 'positive' : 'negative'}">${value >= 0 ? '+' : ''}${value?.toFixed(1) ?? '—'}</span>`;
-const shell = (title, kicker = 'Brasil · CONMEBOL') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav><a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="proximos-jogos.html">Próximos jogos</a><a href="comparar.html">Comparar</a><a href="simulacoes.html">Simulações</a></nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap footer-wrap"><span>FUTRanking · Glicko-2 para o futebol sul-americano</span><span class="footer-links"><a href="dados.html">Dados</a><a href="metodo.html">Método</a></span></div></footer>`;
+const navigation = `<a href="ranking.html">Ranking</a><a href="resultados.html">Resultados</a><a href="proximos-jogos.html">Próximos jogos</a><a href="comparar.html">Comparar</a><a href="odds.html">Odds</a><a href="simulacoes.html">Simulações</a>`;
+const shell = (title, kicker = 'Brasil · CONMEBOL') => `<header class="top"><div class="wrap"><a class="brand" href="index.html"><span class="mark">↗</span>FUTRanking</a><nav>${navigation}</nav><span class="pill">${kicker}</span></div></header><main class="wrap page"><div class="eyebrow">${kicker}</div><h1>${title}</h1><div id="content"></div></main><footer class="foot"><div class="wrap footer-wrap"><span>FUTRanking · Glicko-2 para o futebol sul-americano</span><span class="footer-links"><a href="dados.html">Dados</a><a href="metodo.html">Método</a></span></div></footer>`;
 const stageName = stage => ({LAST_16: 'Oitavas de final', QUARTER_FINALS: 'Quartas de final', SEMI_FINALS: 'Semifinal', FINAL: 'Final', THIRD_PLACE: 'Disputa do 3º lugar'}[stage] || stage?.replaceAll('_', ' '));
 function matchContext(m) { const date = m.played_at || m.scheduled_at; const season = m.season || (date ? String(date).slice(0, 4) : ''); const parts = [[m.competition, season].filter(Boolean).join(' ')]; if (m.stage && m.stage !== 'REGULAR_SEASON') parts.push(stageName(m.stage)); else if (m.matchday) parts.push(`Rodada ${m.matchday}`); if (m.group_name) parts.push(m.group_name); if (m.neutral_site) parts.push('Campo neutro'); else if (Number(m.home_advantage) < 0) parts.push('Mando visitante'); return parts.filter(Boolean).join(' · '); }
 const contextStyle = document.createElement('style');
@@ -49,6 +50,9 @@ document.head.append(clubLinkStyle);
 const backtestStyle = document.createElement('style');
 backtestStyle.textContent = '.backtest-tools{margin:24px 0 4px}.backtest-tools select{min-width:250px;padding:10px 12px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.backtest-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}.backtest-stat{padding:16px;border:1px solid #d8d0c1;border-radius:12px;background:#fffdf8}.backtest-stat b{display:block;font-size:1.35rem}.backtest-stat span{display:block;margin-top:4px;color:#5b6f68;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.backtest-row{grid-template-columns:1fr 85px 115px 115px 90px}.backtest-row strong{text-align:right}.backtest-note{max-width:830px;margin-top:30px}.backtest-note h2{margin-bottom:8px}.model-selection{margin-top:42px}.model-selection-panel{margin-top:16px}.model-selection-row{grid-template-columns:1fr 1fr 1fr minmax(130px,1.4fr)}.model-window-row{grid-template-columns:1fr minmax(160px,1.4fr) 90px 90px minmax(110px,1fr)}.model-selection-row strong,.model-window-row strong{text-align:right}.model-selection-row.winner{background:#e9f0e8;font-weight:850}@media(max-width:700px){.backtest-stats{grid-template-columns:repeat(2,1fr)}.backtest-panel,.model-selection-panel{overflow-x:auto}.backtest-panel #content .row.backtest-row,.backtest-panel .row.backtest-row{display:grid;min-width:570px;grid-template-columns:1fr 85px 115px 115px 90px;padding:12px}.model-selection-panel .row.model-selection-row{display:grid;min-width:440px;grid-template-columns:1fr 1fr 1fr 1.4fr;padding:12px}.model-selection-panel .row.model-window-row{display:grid;min-width:590px;grid-template-columns:1fr 1.4fr 90px 90px 1fr;padding:12px}.backtest-tools select{width:100%;min-width:0}}';
 document.head.append(backtestStyle);
+const oddsStyle = document.createElement('style');
+oddsStyle.textContent = '.odds-intro{max-width:820px}.odds-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:24px 0 12px}.odds-status{color:#5b6f68;font-size:.86rem}.odds-refresh{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-refresh:disabled{opacity:.6;cursor:wait}.odds-panel{margin-top:0}.odds-row{grid-template-columns:minmax(190px,1.35fr) minmax(105px,.75fr) 90px 102px 92px;gap:14px}.odds-row>span,.odds-row>strong{min-width:0}.odds-game{display:grid;gap:4px}.odds-game strong{font-size:.9rem}.odds-game small{color:#5b6f68;font-size:.72rem}.odds-selection{font-weight:800}.odds-model,.odds-market,.odds-alpha{text-align:right;font-variant-numeric:tabular-nums}.odds-alpha{color:#075c42;font-weight:900}.odds-link{color:#075c42;font-weight:800;font-size:.78rem;text-decoration:none}.odds-link:hover{text-decoration:underline}.odds-note{max-width:850px;margin-top:28px;padding:17px 19px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.86rem;line-height:1.55}.odds-warning{margin-top:20px;padding:17px;border:1px solid #e3c7c0;border-radius:12px;background:#fff7f4;color:#7d4037}.odds-warning p{margin:0;color:inherit}@media(max-width:700px){.odds-panel{overflow-x:auto}.odds-row{display:grid!important;min-width:670px;grid-template-columns:250px 115px 85px 100px 80px;padding:12px}.odds-row.table-head{font-size:.65rem}.odds-toolbar{align-items:flex-start;flex-direction:column}.odds-refresh{width:100%}}';
+document.head.append(oddsStyle);
 const adminStyle = document.createElement('style');
 adminStyle.textContent = '.admin-login{max-width:430px;margin:42px auto;padding:26px;border:1px solid #d8d0c1;border-radius:16px;background:#fffdf8}.admin-login h1{font-size:2rem}.admin-login label{display:grid;gap:6px;margin:14px 0;color:#5b6f68;font-size:.8rem;font-weight:800}.admin-login input,.manual-merge input{padding:11px 12px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.admin-login button,.admin-action{border:0;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-weight:850;cursor:pointer}.admin-action.secondary{background:#fffdf8;color:#10231d;border:1px solid #d8d0c1}.admin-action.warn{background:#7c5400}.admin-note{padding:15px 17px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.88rem}.admin-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0}.admin-toolbar span{color:#5b6f68;font-size:.85rem}.identity-card,.manual-merge{margin:14px 0;padding:18px;border:1px solid #d8d0c1;border-radius:14px;background:#fffdf8}.identity-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.identity-card h2,.manual-merge h2{margin:0;font-size:1.08rem}.identity-clubs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:15px 0}.identity-club{display:flex;align-items:center;gap:9px;padding:11px;border:1px solid #e6dfd2;border-radius:10px}.identity-club .crest{width:34px;height:34px;flex-basis:34px}.identity-club small{display:block;color:#5b6f68;margin-top:2px}.identity-actions{display:flex;gap:8px;flex-wrap:wrap}.identity-status,.identity-impact{padding:5px 8px;border-radius:99px;background:#eef3ea;color:#075c42;font-size:.74rem;font-weight:850}.identity-status.pending{background:#f5ead0;color:#7c5400}.identity-impact{background:#edf2eb;color:#34473f;white-space:nowrap}.manual-merge form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:14px}.manual-merge .manual-feedback{grid-column:1/-1;margin:0;color:#7c5400;font-size:.84rem}.manual-merge-list{margin:14px 0 0;padding-left:20px;color:#34473f}.manual-merge-list button{margin-left:8px;border:0;background:none;color:#9a352d;font:inherit;font-weight:800;cursor:pointer}@media(max-width:650px){.admin-login{margin:24px 0;padding:20px}.identity-card{padding:15px}.manual-merge form{grid-template-columns:1fr}.manual-merge .admin-action{width:max-content}}';
 document.head.append(adminStyle);
@@ -304,6 +308,85 @@ function comparisons(data) {
   [selectA, selectB].forEach(input => { input.addEventListener('input', () => { if (teams.some(team => team.name === input.value)) render(); }); input.addEventListener('change', render); }); render();
 }
 
+const html = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+const normalizedTeamName = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\b(?:futebol|clube|club|associacao|esporte|esportes|football|ec|fc|sc|ac|ca|aa|se|sa)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
+const nameTokens = value => normalizedTeamName(value).split(' ').filter(token => token.length > 2 && !['dos', 'das', 'del'].includes(token));
+const namesMatch = (team, outcome) => {
+  const left = normalizedTeamName(team), right = normalizedTeamName(outcome);
+  if (!left || !right) return false;
+  if (left === right || left.includes(right) || right.includes(left)) return true;
+  const tokens = nameTokens(left), outcomeTokens = new Set(nameTokens(right));
+  return tokens.length > 0 && tokens.every(token => outcomeTokens.has(token));
+};
+const parsedList = value => {
+  if (Array.isArray(value)) return value;
+  try { return JSON.parse(value || '[]'); } catch { return []; }
+};
+const marketStart = market => market.gameStartTime || market.startDate || market.endDate || market.createdAt;
+const marketUrl = market => market.eventSlug || market.slug ? `https://polymarket.com/event/${encodeURIComponent(market.eventSlug || market.slug)}` : 'https://polymarket.com';
+
+function matchedPolymarketOutcomes(fixtures, markets) {
+  const now = Date.now(), seen = new Set(), rows = [];
+  const futureFixtures = fixtures.filter(fixture => {
+    const scheduled = new Date(fixture.scheduled_at).getTime();
+    return Number.isFinite(scheduled) && scheduled >= now - 6 * 60 * 60 * 1000 && scheduled <= now + 21 * 86400000;
+  });
+  for (const market of markets) {
+    const key = market.id || market.conditionId || market.slug;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const outcomes = parsedList(market.outcomes), prices = parsedList(market.outcomePrices).map(Number);
+    if (outcomes.length !== 3 || prices.length !== 3 || prices.some(price => !Number.isFinite(price) || price < 0 || price > 1)) continue;
+    const drawIndex = outcomes.findIndex(outcome => /^(draw|tie|empate)$/i.test(String(outcome).trim()));
+    if (drawIndex < 0) continue;
+    const fixture = futureFixtures.find(candidate => {
+      const scheduled = new Date(candidate.scheduled_at).getTime(), started = new Date(marketStart(market)).getTime();
+      const dateMatches = !Number.isFinite(started) || Math.abs(started - scheduled) <= 40 * 60 * 60 * 1000;
+      const homeIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && namesMatch(candidate.home_team, outcome));
+      const awayIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && namesMatch(candidate.away_team, outcome));
+      return dateMatches && homeIndex >= 0 && awayIndex >= 0 && homeIndex !== awayIndex;
+    });
+    if (!fixture) continue;
+    const homeIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && namesMatch(fixture.home_team, outcome));
+    const awayIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && namesMatch(fixture.away_team, outcome));
+    [
+      { index: homeIndex, label: fixture.home_team, model: Number(fixture.home_favoritism) / 100 },
+      { index: drawIndex, label: 'Empate', model: Number(fixture.draw_probability) / 100 },
+      { index: awayIndex, label: fixture.away_team, model: Number(fixture.away_favoritism) / 100 },
+    ].forEach(selection => {
+      const marketProbability = prices[selection.index];
+      if (!Number.isFinite(selection.model) || !Number.isFinite(marketProbability)) return;
+      rows.push({ fixture, selection: selection.label, model: selection.model, market: marketProbability, alpha: selection.model - marketProbability, url: marketUrl(market) });
+    });
+  }
+  return rows.sort((a, b) => b.alpha - a.alpha || new Date(a.fixture.scheduled_at) - new Date(b.fixture.scheduled_at));
+}
+
+async function polymarketOdds(data) {
+  document.body.innerHTML = shell('Odds do mercado', 'Comparação');
+  el('#content').innerHTML = `<p class="odds-intro">Compare o modelo 1X2 do FUTRanking com as probabilidades implícitas nos mercados ativos do Polymarket. Mostramos somente correspondências exatas de clubes e horário, ordenadas pelo maior <strong>alfa</strong>: probabilidade do modelo menos probabilidade do mercado.</p><div class="odds-toolbar"><span class="odds-status">Consultando mercados ativos do Polymarket…</span><button type="button" class="odds-refresh" disabled>Atualizar cotações</button></div><section class="panel odds-panel"><div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p></section><aside class="odds-note"><strong>Leitura do alfa.</strong> Um alfa positivo indica que o modelo atribui uma chance maior ao resultado do que o preço observado no mercado. Ele não considera liquidez, spread, taxas, limites, mudanças de escalação nem risco; não é recomendação de aposta.</aside>`;
+  const status = el('.odds-status'), button = el('.odds-refresh'), panel = el('.odds-panel');
+  const load = async () => {
+    button.disabled = true;
+    status.textContent = 'Consultando mercados ativos do Polymarket…';
+    panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p>`;
+    try {
+      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=1000', { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      const markets = Array.isArray(payload) ? payload : payload.data || [];
+      const rows = matchedPolymarketOutcomes(data.fixtures || [], markets).filter(row => row.alpha > 0);
+      status.textContent = `${rows.length} oportunidade${rows.length === 1 ? '' : 's'} com alfa positivo · atualizado agora`;
+      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div>${rows.map(row => `<article class="row odds-row"><span class="odds-game"><strong>${html(row.fixture.home_team)} × ${html(row.fixture.away_team)}</strong><small>${html(matchContext(row.fixture))} · ${html(time(row.fixture.scheduled_at))}</small></span><span class="odds-selection">${html(row.selection)}</span><span class="odds-model">${(row.model * 100).toFixed(1)}%</span><span class="odds-market">${(row.market * 100).toFixed(1)}%</span><strong class="odds-alpha">+${(row.alpha * 100).toFixed(1)} p.p.<br><a class="odds-link" href="${html(row.url)}" target="_blank" rel="noopener">ver mercado</a></strong></article>`).join('') || '<p class="empty-list">Nenhum mercado 1X2 ativo pôde ser conciliado com segurança aos fixtures atuais. Isso pode significar que não há mercado para a agenda disponível ou que o Polymarket ainda não publicou a cotação.</p>'}`;
+    } catch (error) {
+      status.textContent = 'Não foi possível atualizar as odds agora.';
+      panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><div class="odds-warning"><p>O Polymarket não respondeu à consulta pública neste navegador. Tente atualizar novamente mais tarde.</p></div>`;
+    } finally { button.disabled = false; }
+  };
+  button.addEventListener('click', load);
+  await load();
+}
+
 function dataHealth(data) {
   document.body.innerHTML = shell('Saúde dos dados', 'Transparência');
   const rows = data.data_health || [];
@@ -396,6 +479,9 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
     el('#content').innerHTML = `<p>Horários em Brasília. Percentuais representam favoritismo Glicko-2 com mando de campo. Consulte toda a agenda disponível e pesquise pelo confronto.</p><div class="list-host"></div>`;
     mountPagedList(el('.list-host'), data.fixtures, m => game(m, true), { search: true, competitionFilter: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum jogo futuro corresponde à busca.' });
   }
+  if (page === 'odds') {
+    polymarketOdds(data);
+  }
   if (page === 'club') {
     const name = q.get('time'), team = [...data.teams, ...(data.excluded_teams || [])].find(t => t.name === name);
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
@@ -429,4 +515,3 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
     el('#content').insertAdjacentHTML('beforeend', `<h2>Formato especial da Série B em 2026</h2><p>A Série B mantém os pontos corridos para o título e para o rebaixamento: o campeão é o 1º colocado após as 38 rodadas, e os quatro últimos caem. O acesso, porém, tem uma regra própria: 1º e 2º sobem direto; 3º×6º e 4º×5º disputam as duas vagas restantes em ida e volta. O clube de melhor campanha decide em casa e avança em caso de empate no placar agregado. Nas simulações, esses quatro participantes são definidos ao final de cada cenário e os dois duelos são sorteados com os ratings e o mando de cada partida. Portanto, os fixtures provisórios “TBD” da ESPN são representados pelo playoff, em vez de serem tratados como clubes fictícios.</p>`);
   }
 }).catch(() => { document.body.innerHTML = shell('Dados indisponíveis'); });
-
