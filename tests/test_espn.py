@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from glicko_br.database import connect, initialise
-from glicko_br.espn import sync_period
+from glicko_br.espn import sync_fixture_schedule, sync_period
 from glicko_br.export_site_data import exported_fixtures, exported_matches
 
 
@@ -66,3 +66,19 @@ def test_espn_infers_domestic_country_without_requesting_profiles():
     assert client.country_requests == []
     countries = dict(database.execute("SELECT name, country FROM clubs"))
     assert countries == {"Casa": "Brasil", "Fora": "Brasil"}
+
+
+def test_espn_fixture_schedule_keeps_only_pending_events():
+    database = connect(":memory:")
+    initialise(database)
+    payload = {"events": [event("future", completed=False), event("final", completed=True)]}
+
+    class Client:
+        def get_scoreboard(self, league, *, dates):
+            assert dates == "2026"
+            return payload, "{}", f"/{league}/scoreboard"
+
+    assert sync_fixture_schedule(database, "2026", leagues={"bra.1": "Série A"}, client=Client()) == 1
+    fixtures = exported_fixtures(database, [])
+    assert len(fixtures) == 1
+    assert fixtures[0]["external_id"] == "espn:future"
