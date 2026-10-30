@@ -40,9 +40,9 @@ ESPN_COMPETITIONS = (
     Competition("ven.1", "Primera División da Venezuela"),
 )
 
-# Competições estaduais que são coletadas exclusivamente pela Global Sports
-# Archive. Elas ficam no catálogo comum para que banco, exportação e filtros
-# reconheçam os seus jogos, sem aumentar as chamadas à ESPN.
+# Competições brasileiras complementares que são coletadas exclusivamente pela
+# Global Sports Archive. Elas ficam no catálogo comum para que banco,
+# exportação e filtros reconheçam os seus jogos, sem aumentar as chamadas à ESPN.
 GSA_ONLY_COMPETITIONS = (
     "Paulista A2",
     "Campeonato Paranaense",
@@ -51,6 +51,8 @@ GSA_ONLY_COMPETITIONS = (
     "Campeonato Cearense",
     "Campeonato Goiano",
     "Campeonato Catarinense",
+    "Copa do Nordeste",
+    "Copa Paulista",
 )
 
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
@@ -73,6 +75,8 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Campeonato Cearense": "Brasil",
     "Campeonato Goiano": "Brasil",
     "Campeonato Catarinense": "Brasil",
+    "Copa do Nordeste": "Brasil",
+    "Copa Paulista": "Brasil",
     "Copa do Brasil": "Brasil",
     "Primera División do Chile": "Chile",
     "Primera A Colombiana": "Colômbia",
@@ -93,7 +97,7 @@ BRAZILIAN_STATE_BY_COMPETITION = {
     "Campeonato Gaúcho": "RS", "Campeonato Paranaense": "PR",
     "Campeonato Baiano": "BA", "Campeonato Pernambucano": "PE",
     "Campeonato Cearense": "CE", "Campeonato Goiano": "GO",
-    "Campeonato Catarinense": "SC",
+    "Campeonato Catarinense": "SC", "Copa Paulista": "SP",
 }
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
