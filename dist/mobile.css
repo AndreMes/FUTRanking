@@ -6,7 +6,7 @@
   .top .wrap { align-items: center; flex-wrap: wrap; gap: 9px; padding-inline: clamp(12px, 4vw, 18px); }
   .brand { font-size: 1rem; }
   nav { order: 3; display: flex; width: 100%; justify-content: space-between; gap: 0; overflow: visible; padding: 4px 0 0; }
-  nav a { min-width: 0; flex: 0 1 auto; padding: 6px 0; text-align: center; white-space: nowrap; font-size: clamp(.62rem, 2.9vw, .74rem); letter-spacing: -.02em; }
+  nav a { min-width: 0; flex: 0 1 auto; padding: 6px 0; text-align: center; white-space: nowrap; font-size: clamp(.57rem, 2.55vw, .68rem); letter-spacing: -.025em; }
   /* Mesmo respiro do herói da home para o cabeçalho de conteúdo das demais abas. */
   .wrap.page { padding: 40px clamp(20px, 6vw, 28px) 70px; }
   h1 { font-size: clamp(2.45rem, 13vw, 3.8rem); line-height: .95; }
@@ -46,7 +46,6 @@
   .simulation-row { grid-template-columns: 26px minmax(0, 1fr) 42px 58px; font-size: .78rem; }
 }
 
-
 .forecast-1x2 { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--muted); font-size: .72rem; letter-spacing: -.01em; }
 .forecast-1x2 span { display: inline-flex; gap: 2px; align-items: baseline; }
 .forecast-1x2 b { color: var(--ink); font-size: .78rem; }
@@ -61,6 +60,7 @@
 .fixture-market { display: inline-grid; justify-items: center; gap: 5px; }
 .probability-bar { display: flex; width: 154px; height: 7px; overflow: hidden; border-radius: 99px; background: #d5d8d5; box-shadow: inset 0 0 0 1px rgba(19,33,28,.12); }
 .probability-bar i { display: block; height: 100%; min-width: 0; }
+
 @media (max-width: 700px) {
   .fixture-market { justify-items: start; }
   .probability-bar { width: 126px; height: 6px; }
