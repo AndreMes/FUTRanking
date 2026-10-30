@@ -1,4 +1,4 @@
-from glicko_br.club_identity import canonical_name
+from glicko_br.club_identity import canonical_name, must_remain_separate
 from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, reconcile_provider_identities, store_match
 
 
@@ -77,6 +77,14 @@ def test_reviewed_aliases_from_first_admin_round():
     assert canonical_name("Rio Branco FC", "BR") == "Rio Branco AC"
     assert canonical_name("Águia de Marabá FC", "BR") == "Aguia de Maraba"
     assert canonical_name("EC Democrata", "BR") == "Democrata FC"
+
+
+def test_second_admin_round_aliases_and_separate_decisions():
+    assert canonical_name("EC Internacional", "BR") == "Internacional"
+    assert canonical_name("São Bernardo FC", "BR") == "São Bernardo"
+    assert canonical_name("EC XV de Novembro de Piracicaba", "BR") == "XV de Piracicaba"
+    assert must_remain_separate("América FC", "América SE", "BR")
+    assert must_remain_separate("Náutico", "Náutico FC", "BR")
 
 
 def test_unmergeable_provider_candidate_does_not_clear_processed_ratings():
