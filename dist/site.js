@@ -371,9 +371,9 @@ async function polymarketOdds(data) {
     status.textContent = 'Consultando mercados ativos do Polymarket…';
     panel.innerHTML = `<div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p>`;
     try {
-      // O Gamma limita cada página a 500 mercados. Uma solicitação acima disso
-      // é recusada antes de qualquer mercado ser devolvido.
-      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500&order=volume_24hr&ascending=false', { headers: { Accept: 'application/json' } });
+      // Uma única página curta, ordenada pelo encerramento mais próximo: a
+      // comparação prioriza jogos iminentes e evita varrer o catálogo inteiro.
+      const response = await fetch('https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&order=end_date&ascending=true', { headers: { Accept: 'application/json' } });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
       const markets = Array.isArray(payload) ? payload : payload.data || [];
