@@ -397,6 +397,10 @@ function matchedPolymarketOutcomes(fixtures, markets) {
 
 async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds do mercado', 'Comparação');
+  if (!(data.fixtures || []).length) {
+    el('#content').innerHTML = `<p class="odds-intro">A comparação depende dos fixtures futuros publicados pelo FUTRanking.</p><section class="panel simulation-unavailable"><h2>Agenda futura indisponível</h2><p>O arquivo de dados atual não contém fixtures pendentes. Quando a próxima atualização da agenda for publicada, esta página voltará a consultar e conciliar os mercados 1X2 automaticamente.</p></section>`;
+    return;
+  }
   el('#content').innerHTML = `<p class="odds-intro">Compare o modelo 1X2 do FUTRanking com as probabilidades implícitas nos mercados ativos do Polymarket. Mostramos somente correspondências exatas de clubes e horário, ordenadas pelo maior <strong>alfa</strong>: probabilidade do modelo menos probabilidade do mercado.</p><div class="odds-toolbar"><span class="odds-status">Consultando mercados ativos do Polymarket…</span><button type="button" class="odds-refresh" disabled>Atualizar cotações</button></div><section class="panel odds-panel"><div class="row odds-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span></div><p class="empty-list">Carregando odds ao vivo…</p></section><aside class="odds-note"><strong>Leitura do alfa.</strong> Um alfa positivo indica que o modelo atribui uma chance maior ao resultado do que o preço observado no mercado. Ele não considera liquidez, spread, taxas, limites, mudanças de escalação nem risco; não é recomendação de aposta.</aside>`;
   const status = el('.odds-status'), button = el('.odds-refresh'), panel = el('.odds-panel');
   const load = async () => {
