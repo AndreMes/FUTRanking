@@ -79,10 +79,14 @@ def test_historical_bridge_catalog_contains_the_requested_competitions():
         "Campeonato Paranaense", "Campeonato Baiano", "Campeonato Pernambucano", "Campeonato Cearense",
         "Campeonato Goiano", "Campeonato Catarinense", "Copa do Nordeste", "Copa Paulista",
         "Campeonato Paraense", "Campeonato Alagoano", "Campeonato Potiguar", "Campeonato Amazonense",
+        "Campeonato Paraibano", "Campeonato Maranhense", "Campeonato Piauiense", "Campeonato Sergipano",
+        "Campeonato Mato-Grossense",
     }
     assert set(REGIONAL_BRIDGE_COMPETITION_NAMES) == {
         "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
         "Campeonato Potiguar", "Campeonato Amazonense",
+        "Campeonato Paraibano", "Campeonato Maranhense", "Campeonato Piauiense", "Campeonato Sergipano",
+        "Campeonato Mato-Grossense",
     }
     assert "Copa Paulista" not in STATE_COMPETITION_NAMES
 
