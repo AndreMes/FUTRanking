@@ -51,7 +51,7 @@ const backtestStyle = document.createElement('style');
 backtestStyle.textContent = '.backtest-tools{margin:24px 0 4px}.backtest-tools select{min-width:250px;padding:10px 12px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.backtest-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}.backtest-stat{padding:16px;border:1px solid #d8d0c1;border-radius:12px;background:#fffdf8}.backtest-stat b{display:block;font-size:1.35rem}.backtest-stat span{display:block;margin-top:4px;color:#5b6f68;font-size:.7rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}.backtest-row{grid-template-columns:1fr 85px 115px 115px 90px}.backtest-row strong{text-align:right}.backtest-note{max-width:830px;margin-top:30px}.backtest-note h2{margin-bottom:8px}.model-selection{margin-top:42px}.model-selection-panel{margin-top:16px}.model-selection-row{grid-template-columns:1fr 1fr 1fr minmax(130px,1.4fr)}.model-window-row{grid-template-columns:1fr minmax(160px,1.4fr) 90px 90px minmax(110px,1fr)}.model-selection-row strong,.model-window-row strong{text-align:right}.model-selection-row.winner{background:#e9f0e8;font-weight:850}@media(max-width:700px){.backtest-stats{grid-template-columns:repeat(2,1fr)}.backtest-panel,.model-selection-panel{overflow-x:auto}.backtest-panel #content .row.backtest-row,.backtest-panel .row.backtest-row{display:grid;min-width:570px;grid-template-columns:1fr 85px 115px 115px 90px;padding:12px}.model-selection-panel .row.model-selection-row{display:grid;min-width:440px;grid-template-columns:1fr 1fr 1fr 1.4fr;padding:12px}.model-selection-panel .row.model-window-row{display:grid;min-width:590px;grid-template-columns:1fr 1.4fr 90px 90px 1fr;padding:12px}.backtest-tools select{width:100%;min-width:0}}';
 document.head.append(backtestStyle);
 const oddsStyle = document.createElement('style');
-oddsStyle.textContent = '.odds-intro{max-width:820px}.odds-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:24px 0 12px}.odds-status{color:#5b6f68;font-size:.86rem}.odds-refresh{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-refresh:disabled{opacity:.6;cursor:wait}.odds-panel{margin-top:0}.odds-row{grid-template-columns:minmax(190px,1.35fr) minmax(105px,.75fr) 90px 102px 92px;gap:14px}.odds-row>span,.odds-row>strong{min-width:0}.odds-game{display:grid;gap:4px}.odds-game strong{font-size:.9rem}.odds-game small{color:#5b6f68;font-size:.72rem}.odds-selection{font-weight:800}.odds-model,.odds-market,.odds-alpha{text-align:right;font-variant-numeric:tabular-nums}.odds-alpha{color:#075c42;font-weight:900}.odds-link{color:#075c42;font-weight:800;font-size:.78rem;text-decoration:none}.odds-link:hover{text-decoration:underline}.odds-note{max-width:850px;margin-top:28px;padding:17px 19px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.86rem;line-height:1.55}.odds-warning{margin-top:20px;padding:17px;border:1px solid #e3c7c0;border-radius:12px;background:#fff7f4;color:#7d4037}.odds-warning p{margin:0;color:inherit}@media(max-width:700px){.odds-panel{overflow-x:auto}.odds-row{display:grid!important;min-width:670px;grid-template-columns:250px 115px 85px 100px 80px;padding:12px}.odds-row.table-head{font-size:.65rem}.odds-toolbar{align-items:flex-start;flex-direction:column}.odds-refresh{width:100%}}';
+oddsStyle.textContent = '.odds-intro{max-width:820px}.odds-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:24px 0 12px}.odds-status{color:#5b6f68;font-size:.86rem}.odds-refresh{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-refresh:disabled{opacity:.6;cursor:wait}.odds-panel{margin-top:0}.odds-row{grid-template-columns:minmax(190px,1.35fr) minmax(105px,.75fr) 90px 102px 92px;gap:14px}.odds-row>span,.odds-row>strong{min-width:0}.odds-game{display:grid;gap:4px}.odds-game strong{font-size:.9rem}.odds-game small{color:#5b6f68;font-size:.72rem}.odds-selection{font-weight:800}.odds-model,.odds-market,.odds-alpha{text-align:right;font-variant-numeric:tabular-nums}.odds-alpha{color:#075c42;font-weight:900}.odds-link{color:#075c42;font-weight:800;font-size:.78rem;text-decoration:none}.odds-link:hover{text-decoration:underline}.odds-note{max-width:850px;margin-top:28px;padding:17px 19px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.86rem;line-height:1.55}.odds-warning{margin-top:20px;padding:17px;border:1px solid #e3c7c0;border-radius:12px;background:#fff7f4;color:#7d4037}.odds-warning p{margin:0;color:inherit}.brazil-odds-row{grid-template-columns:minmax(240px,1.4fr) repeat(3,minmax(115px,.8fr));gap:14px}.brazil-odds-row strong:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}.brazil-odds-row small{display:block;margin-top:3px;color:#5b6f68;font-size:.72rem}@media(max-width:700px){.odds-panel{overflow-x:auto}.odds-row{display:grid!important;min-width:670px;grid-template-columns:250px 115px 85px 100px 80px;padding:12px}.brazil-odds-row{display:grid!important;min-width:640px;grid-template-columns:260px repeat(3,125px);padding:12px}.odds-row.table-head{font-size:.65rem}.odds-toolbar{align-items:flex-start;flex-direction:column}.odds-refresh{width:100%}}';
 document.head.append(oddsStyle);
 const adminStyle = document.createElement('style');
 adminStyle.textContent = '.admin-login{max-width:430px;margin:42px auto;padding:26px;border:1px solid #d8d0c1;border-radius:16px;background:#fffdf8}.admin-login h1{font-size:2rem}.admin-login label{display:grid;gap:6px;margin:14px 0;color:#5b6f68;font-size:.8rem;font-weight:800}.admin-login input,.manual-merge input{padding:11px 12px;border:1px solid #d8d0c1;border-radius:9px;background:#fffdf8;color:#10231d;font:inherit}.admin-login button,.admin-action{border:0;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-weight:850;cursor:pointer}.admin-action.secondary{background:#fffdf8;color:#10231d;border:1px solid #d8d0c1}.admin-action.warn{background:#7c5400}.admin-note{padding:15px 17px;border-left:4px solid #b6e851;background:#e9f0e8;color:#34473f;font-size:.88rem}.admin-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:22px 0}.admin-toolbar span{color:#5b6f68;font-size:.85rem}.identity-card,.manual-merge{margin:14px 0;padding:18px;border:1px solid #d8d0c1;border-radius:14px;background:#fffdf8}.identity-card header{display:flex;align-items:center;justify-content:space-between;gap:12px}.identity-card h2,.manual-merge h2{margin:0;font-size:1.08rem}.identity-clubs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin:15px 0}.identity-club{display:flex;align-items:center;gap:9px;padding:11px;border:1px solid #e6dfd2;border-radius:10px}.identity-club .crest{width:34px;height:34px;flex-basis:34px}.identity-club small{display:block;color:#5b6f68;margin-top:2px}.identity-actions{display:flex;gap:8px;flex-wrap:wrap}.identity-status,.identity-impact{padding:5px 8px;border-radius:99px;background:#eef3ea;color:#075c42;font-size:.74rem;font-weight:850}.identity-status.pending{background:#f5ead0;color:#7c5400}.identity-impact{background:#edf2eb;color:#34473f;white-space:nowrap}.manual-merge form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:14px}.manual-merge .manual-feedback{grid-column:1/-1;margin:0;color:#7c5400;font-size:.84rem}.manual-merge-list{margin:14px 0 0;padding-left:20px;color:#34473f}.manual-merge-list button{margin-left:8px;border:0;background:none;color:#9a352d;font:inherit;font-weight:800;cursor:pointer}@media(max-width:650px){.admin-login{margin:24px 0;padding:20px}.identity-card{padding:15px}.manual-merge form{grid-template-columns:1fr}.manual-merge .admin-action{width:max-content}}';
@@ -430,7 +430,69 @@ function matchedPolymarketOutcomes(fixtures, markets) {
   return rows.sort((a, b) => b.alpha - a.alpha || new Date(a.fixture.scheduled_at) - new Date(b.fixture.scheduled_at));
 }
 
-async function polymarketOdds(data) {
+function eventTeams(title) {
+  const parts = String(title || '').split(/\s+(?:vs\.?|v\.?|x)\s+/i).map(value => value.trim()).filter(Boolean);
+  return parts.length === 2 ? parts : [];
+}
+
+function eventOneXTwo(event) {
+  const markets = event.markets || [], teams = eventTeams(event.title);
+  for (const market of markets) {
+    const outcomes = parsedList(market.outcomes), prices = parsedList(market.outcomePrices).map(Number);
+    const drawIndex = outcomes.findIndex(outcome => /^(draw|tie|empate)$/i.test(String(outcome).trim()));
+    if (outcomes.length === 3 && drawIndex >= 0 && prices.every(Number.isFinite)) {
+      const homeIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && (!teams.length || namesMatch(teams[0], outcome)));
+      const awayIndex = outcomes.findIndex((outcome, index) => index !== drawIndex && (!teams.length || namesMatch(teams[1], outcome)));
+      if (homeIndex >= 0 && awayIndex >= 0 && homeIndex !== awayIndex) return { home: prices[homeIndex], draw: prices[drawIndex], away: prices[awayIndex] };
+    }
+  }
+  if (teams.length !== 2) return null;
+  const findYes = matcher => {
+    const market = markets.find(item => matcher(`${item.question || ''} ${item.title || ''} ${item.groupItemTitle || ''}`));
+    if (!market) return null;
+    const outcomes = parsedList(market.outcomes), prices = parsedList(market.outcomePrices).map(Number), yes = outcomes.findIndex(outcome => /^(yes|sim)$/i.test(String(outcome).trim()));
+    return yes >= 0 && Number.isFinite(prices[yes]) ? prices[yes] : null;
+  };
+  const home = findYes(text => namesMatch(teams[0], text));
+  const draw = findYes(text => /\b(draw|tie|empate)\b/i.test(text));
+  const away = findYes(text => namesMatch(teams[1], text));
+  return home != null && draw != null && away != null ? { home, draw, away } : null;
+}
+
+async function polymarketOdds() {
+  document.body.innerHTML = shell('Odds da Série A', 'Teste de fonte');
+  el('#content').innerHTML = `<p class="odds-intro">Teste isolado da fonte: jogos da rodada vigente do Campeonato Brasileiro e as probabilidades 1X2 retornadas pelo Polymarket. Não há comparação com o FUTRanking nesta etapa.</p><div class="odds-toolbar"><span class="odds-status">Consultando a categoria brasileira no Polymarket…</span><button type="button" class="odds-refresh" disabled>Atualizar cotações</button></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Teste de integração.</strong> Os nomes e percentuais exibidos aqui vêm diretamente do Polymarket. Depois de confirmar a fonte e o formato dos três resultados, voltamos a conectar esta tabela aos fixtures e ao modelo do FUTRanking.</aside>`;
+  const status = el('.odds-status'), button = el('.odds-refresh'), panel = el('.odds-panel');
+  const load = async () => {
+    button.disabled = true;
+    status.textContent = 'Consultando a categoria brasileira no Polymarket…';
+    try {
+      const tagsResponse = await fetch('https://gamma-api.polymarket.com/tags', { headers: { Accept: 'application/json' } });
+      if (!tagsResponse.ok) throw new Error(`HTTP ${tagsResponse.status}`);
+      const tags = responseRows(await tagsResponse.json());
+      const tag = tags.find(item => /brasil|brazil/.test(normalizedTeamName(item.label || item.name || item.slug || '')) && /serie a|brasileirao|seriea/.test(normalizedTeamName(item.label || item.name || item.slug || '')));
+      if (!tag?.id) throw new Error('categoria Série A não encontrada');
+      const eventsResponse = await fetch(`https://gamma-api.polymarket.com/events?active=true&closed=false&tag_id=${encodeURIComponent(tag.id)}&limit=100`, { headers: { Accept: 'application/json' } });
+      if (!eventsResponse.ok) throw new Error(`HTTP ${eventsResponse.status}`);
+      const now = Date.now();
+      const events = responseRows(await eventsResponse.json())
+        .filter(event => new Date(event.gameStartTime || event.startDate || event.endDate).getTime() >= now - 6 * 60 * 60 * 1000)
+        .sort((a, b) => new Date(a.gameStartTime || a.startDate || a.endDate) - new Date(b.gameStartTime || b.startDate || b.endDate));
+      const first = events[0] && new Date(events[0].gameStartTime || events[0].startDate || events[0].endDate);
+      const round = first ? events.filter(event => Math.abs(new Date(event.gameStartTime || event.startDate || event.endDate) - first) <= 3 * 86400000).slice(0, 12) : [];
+      const rows = round.map(event => ({ event, odds: eventOneXTwo(event) })).filter(row => row.odds);
+      status.textContent = `${rows.length} jogo${rows.length === 1 ? '' : 's'} com mercado 1X2 · categoria: ${tag.label || tag.name || tag.slug}`;
+      panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${rows.map(({ event, odds }) => `<article class="row brazil-odds-row"><span><strong>${html(event.title)}</strong><small>${event.gameStartTime || event.startDate ? html(time(event.gameStartTime || event.startDate)) : 'Horário não informado'}</small></span><strong>${(odds.home * 100).toFixed(1)}%</strong><strong>${(odds.draw * 100).toFixed(1)}%</strong><strong>${(odds.away * 100).toFixed(1)}%</strong></article>`).join('') || '<p class="empty-list">A categoria foi consultada, mas não retornou um mercado 1X2 ativo para a próxima rodada. O próximo passo será mostrar os eventos e contratos brutos devolvidos pela fonte.</p>'}`;
+    } catch (error) {
+      status.textContent = 'Não foi possível consultar a Série A agora.';
+      panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><div class="odds-warning"><p>Consulta de teste indisponível: ${html(String(error?.message || 'erro de rede'))}.</p></div>`;
+    } finally { button.disabled = false; }
+  };
+  button.addEventListener('click', load);
+  await load();
+}
+
+async function legacyPolymarketOdds(data) {
   document.body.innerHTML = shell('Odds do mercado', 'Comparação');
   if (!(data.fixtures || []).length) {
     el('#content').innerHTML = `<p class="odds-intro">A comparação depende dos fixtures futuros publicados pelo FUTRanking.</p><section class="panel simulation-unavailable"><h2>Agenda futura indisponível</h2><p>O arquivo de dados atual não contém fixtures pendentes. Quando a próxima atualização da agenda for publicada, esta página voltará a consultar e conciliar os mercados 1X2 automaticamente.</p></section>`;
