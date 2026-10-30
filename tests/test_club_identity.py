@@ -109,3 +109,22 @@ def test_unmergeable_provider_candidate_does_not_clear_processed_ratings():
     assert reconcile_provider_identities(database) == (0, 0)
     assert database.execute("SELECT COUNT(*) FROM processed_matches").fetchone()[0] == 1
 
+
+def test_catalog_expansion_migrates_old_match_check_without_losing_history():
+    database = connect(":memory:")
+    database.execute("CREATE TABLE clubs (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, state TEXT, primary_color TEXT)")
+    database.execute("INSERT INTO clubs(id, name, country) VALUES (1, 'Clube A', 'Brasil'), (2, 'Clube B', 'Brasil')")
+    database.execute("""CREATE TABLE matches (
+        external_id TEXT PRIMARY KEY, played_at TEXT NOT NULL, competition TEXT NOT NULL,
+        matchday INTEGER, neutral_site INTEGER NOT NULL DEFAULT 0, home_advantage REAL NOT NULL DEFAULT 80, venue_country TEXT, stage TEXT, group_name TEXT,
+        home_club_id INTEGER NOT NULL, away_club_id INTEGER NOT NULL, home_goals INTEGER NOT NULL, away_goals INTEGER NOT NULL,
+        CHECK(home_club_id <> away_club_id), CHECK(competition IN ('Série A'))
+    )""")
+    database.execute("""INSERT INTO matches VALUES ('old', '2026-01-01T12:00:00-03:00', 'Série A', NULL, 0, 80, NULL, NULL, NULL, 1, 2, 1, 0)""")
+
+    initialise(database)
+
+    assert database.execute("SELECT COUNT(*) FROM matches WHERE external_id='old'").fetchone()[0] == 1
+    store_match(database, {**match("regional", "Clube A", "Clube B"), "competition": "Copa do Nordeste"})
+    assert database.execute("SELECT COUNT(*) FROM matches WHERE competition='Copa do Nordeste'").fetchone()[0] == 1
+
