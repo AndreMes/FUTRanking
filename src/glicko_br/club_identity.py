@@ -85,7 +85,23 @@ BRAZILIAN_ALIASES = {
     "guapore fc": "Guapore", "galicia ec": "Galicia EC",
     "ec democrata": "Democrata FC", "sao raimundo rr": "São Raimundo EC (RR)",
     "princesa do solimoes ec": "Princesa do Solimoes", "globo fc": "Globo",
+    # Segunda rodada: duas pendências detectadas e uma indicação manual.
+    "ec internacional": "Internacional", "ec sao bernardo": "São Bernardo",
+    "sao bernardo fc": "São Bernardo",
+    "ec xv de novembro de piracicaba": "XV de Piracicaba",
 }
+
+# Pares revisados que não podem ser conciliados pela semelhança de nomes nem
+# pela checagem entre provedores. As chaves passam pela mesma normalização de
+# acentos da importação.
+BRAZILIAN_SEPARATE_PAIRS = frozenset({
+    frozenset(("america fc", "america se")),
+    frozenset(("nautico", "nautico fc")),
+})
+
+
+def must_remain_separate(first: str, second: str, country_key: str | None) -> bool:
+    return country_key == "BR" and frozenset((alias_key(first), alias_key(second))) in BRAZILIAN_SEPARATE_PAIRS
 
 
 def canonical_name(name: str, country_key: str | None) -> str:
