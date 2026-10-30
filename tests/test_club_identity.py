@@ -80,11 +80,12 @@ def test_reviewed_aliases_from_first_admin_round():
 
 
 def test_second_admin_round_aliases_and_separate_decisions():
-    assert canonical_name("EC Internacional", "BR") == "Internacional"
+    assert canonical_name("EC Internacional", "BR") == "EC Internacional"
     assert canonical_name("São Bernardo FC", "BR") == "São Bernardo"
     assert canonical_name("EC XV de Novembro de Piracicaba", "BR") == "XV de Piracicaba"
     assert must_remain_separate("América FC", "América SE", "BR")
     assert must_remain_separate("Náutico", "Náutico FC", "BR")
+    assert must_remain_separate("EC Internacional", "Internacional", "BR")
 
 
 def test_unmergeable_provider_candidate_does_not_clear_processed_ratings():
