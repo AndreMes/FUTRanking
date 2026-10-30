@@ -327,6 +327,14 @@ def data_sources_for(competition: str) -> list[dict[str, str]]:
         "Campeonato Piauiense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-piauiense-serie-a-2026-2027/80563",
         "Campeonato Sergipano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-sergipao-superbet-2026/78057",
         "Campeonato Mato-Grossense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-mato-grossense-1a-divisao-2026/80561",
+        "Campeonato Acreano": "https://globalsportsarchive.com/en/soccer/competition/campeonato-acreano-2026/78218",
+        "Campeonato Amapaense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-amapaense-serie-a-2026/80554",
+        "Campeonato Brasiliense": "https://globalsportsarchive.com/en/soccer/competition/candangao-brb-2026/78154",
+        "Campeonato Capixaba": "https://globalsportsarchive.com/en/soccer/competition/campeonato-capixaba-serie-a-2026/80557",
+        "Campeonato Rondoniense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-rondoniense-serie-a-2026/80569",
+        "Campeonato Roraimense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-roraimense-giro-agro-2026/80570",
+        "Campeonato Sul-Mato-Grossense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-sul-mato-grossense-serie-a-2026/80560",
+        "Campeonato Tocantinense": "https://globalsportsarchive.com/en/soccer/competition/campeonato-tocantinense-1a-divisao-2026/80571",
     }
     if competition in state_sources:
         sources = [{"period": "2016–atual", "source": "Global Sports Archive", "url": state_sources[competition]}]
