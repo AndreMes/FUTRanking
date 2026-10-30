@@ -189,7 +189,8 @@ def _infer_historical_club_states(database: sqlite3.Connection) -> None:
             )
 
 
-def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) -> bool:
+def _can_merge_club(database: sqlite3.Connection, source_id: int, target_id: int) -> bool:
+    """Confere se uma fusão é segura sem alterar banco nem estado de ratings."""
     if source_id == target_id:
         return False
     # Não há confronto válido de um clube contra si; esta proteção impede que
@@ -200,10 +201,20 @@ def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) ->
     ).fetchone()
     if same_match:
         return False
-    source_state, target_state = database.execute(
-        "SELECT state FROM clubs WHERE id IN (?, ?) ORDER BY id", (source_id, target_id)
+    states = database.execute(
+        "SELECT id, state FROM clubs WHERE id IN (?, ?)", (source_id, target_id)
     ).fetchall()
-    if source_state["state"] and target_state["state"] and source_state["state"] != target_state["state"]:
+    if len(states) != 2:
+        return False
+    state_by_id = {int(row["id"]): row["state"] for row in states}
+    source_state, target_state = state_by_id[source_id], state_by_id[target_id]
+    if source_state and target_state and source_state != target_state:
+        return False
+    return True
+
+
+def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) -> bool:
+    if not _can_merge_club(database, source_id, target_id):
         return False
     database.execute("UPDATE matches SET home_club_id=? WHERE home_club_id=?", (target_id, source_id))
     database.execute("UPDATE matches SET away_club_id=? WHERE away_club_id=?", (target_id, source_id))
@@ -267,11 +278,12 @@ def reconcile_provider_identities(database: sqlite3.Connection) -> tuple[int, in
                     merges.extend(((int(source["home_id"]), int(target["home_id"])), (int(source["away_id"]), int(target["away_id"]))))
                     break
     merges = list(dict.fromkeys(pair for pair in merges if pair[0] != pair[1]))
-    if not merges:
+    viable = [pair for pair in merges if _can_merge_club(database, *pair)]
+    if not viable:
         return 0, 0
     _clear_rating_rebuild_state(database)
     merged = 0
-    for source_id, target_id in merges:
+    for source_id, target_id in viable:
         source_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (source_id,)).fetchone()
         target_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (target_id,)).fetchone()
         if source_exists and target_exists and _merge_club(database, source_id, target_id):
@@ -293,13 +305,14 @@ def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
         target = by_name.get(target_name)
         if target and int(target["id"]) != int(row["id"]):
             merges.append((int(row["id"]), int(target["id"])))
-    if not merges:
+    viable = [pair for pair in merges if _can_merge_club(database, *pair)]
+    if not viable:
         for row in club_rows:
             _register_alias(database, str(row["name"]), row["country"], int(row["id"]))
         return 0, 0
     _clear_rating_rebuild_state(database)
     merged = 0
-    for source_id, target_id in merges:
+    for source_id, target_id in viable:
         source_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (source_id,)).fetchone()
         target_exists = database.execute("SELECT 1 FROM clubs WHERE id=?", (target_id,)).fetchone()
         if source_exists and target_exists and _merge_club(database, source_id, target_id):
