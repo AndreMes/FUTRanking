@@ -49,13 +49,20 @@ COMPETITIONS = (
     GsaCompetition("Campeonato Catarinense", "campeonato-catarinense", f"{BASE_URL}/en/soccer/competition/catarinense-fort-atacadista-2026/78219"),
     GsaCompetition("Copa do Nordeste", "copa-do-nordeste", f"{BASE_URL}/en/soccer/competition/copa-do-nordeste-2026/77998"),
     GsaCompetition("Copa Paulista", "copa-paulista", f"{BASE_URL}/en/soccer/competition/copa-paulista-rivalo-2026/78196"),
+    GsaCompetition("Campeonato Paraense", "campeonato-paraense", f"{BASE_URL}/en/soccer/competition/campeonato-paraense-serie-a-2026/78223"),
+    GsaCompetition("Campeonato Alagoano", "campeonato-alagoano", f"{BASE_URL}/en/soccer/competition/campeonato-alagoano-2026/77986"),
+    GsaCompetition("Campeonato Potiguar", "campeonato-potiguar", f"{BASE_URL}/en/soccer/competition/campeonato-potiguar-2026/78222"),
+    GsaCompetition("Campeonato Amazonense", "campeonato-amazonense", f"{BASE_URL}/en/soccer/competition/campeonato-amazonense-serie-a-2026/80555"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
 # Todas estas competições trazem pontes históricas entre níveis do futebol
 # brasileiro. As duas listas permitem carregar somente uma novidade sem repetir
 # toda a carga estadual já concluída no banco persistente.
 STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS if competition.name not in {"Série C", "Série D", "Copa do Nordeste", "Copa Paulista"})
-REGIONAL_BRIDGE_COMPETITION_NAMES = ("Copa do Nordeste", "Copa Paulista")
+REGIONAL_BRIDGE_COMPETITION_NAMES = (
+    "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
+    "Campeonato Potiguar", "Campeonato Amazonense",
+)
 HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES
 
 
