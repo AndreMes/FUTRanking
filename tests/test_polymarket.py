@@ -1,4 +1,4 @@
-from glicko_br.polymarket import extract_games
+from glicko_br.polymarket import event_odds, extract_game_slugs, extract_games
 
 
 def test_extract_games_reads_visible_moneyline_triplet():
@@ -32,3 +32,19 @@ def test_extract_games_removes_neighbouring_card_data_from_title():
     Vitória 10-8-14 Fluminense 15-9-9 VIT 36¢ DRAW 32¢ FLU 45¢</div>
     """
     assert extract_games(markup)[0]["title"] == "EC Vitória vs. Fluminense FC"
+
+
+def test_extract_game_slugs_uses_each_game_link():
+    markup = '<a href="/es/sports/bra/bra-cor1-mir-2026-10-30">Jogo</a><a href="/es/sports/bra/bra-vit-flu-2026-10-30">Jogo</a>'
+    assert extract_game_slugs(markup) == ["bra-cor1-mir-2026-10-30", "bra-vit-flu-2026-10-30"]
+
+
+def test_event_odds_uses_moneyline_contract_suffixes():
+    event = {"title": "SC Corinthians Paulista vs. Mirassol FC", "startDate": "2026-10-30T23:00:00Z"}
+    markets = [
+        {"slug": "bra-cor1-mir-2026-10-30-cor1", "title": "COR1", "outcomePrices": '["0.55", "0.45"]'},
+        {"slug": "bra-cor1-mir-2026-10-30-draw", "title": "DRAW", "outcomePrices": '["0.27", "0.73"]'},
+        {"slug": "bra-cor1-mir-2026-10-30-mir", "title": "MIR", "outcomePrices": '["0.20", "0.80"]'},
+        {"slug": "bra-cor1-mir-2026-10-30-total-2pt5", "title": "O 2.5", "outcomePrices": '["0.49", "0.51"]'},
+    ]
+    assert event_odds(event, markets, "bra-cor1-mir-2026-10-30")["codes"] == {"home": "COR1", "away": "MIR"}
