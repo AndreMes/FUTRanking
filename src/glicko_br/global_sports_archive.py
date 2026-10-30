@@ -53,6 +53,11 @@ COMPETITIONS = (
     GsaCompetition("Campeonato Alagoano", "campeonato-alagoano", f"{BASE_URL}/en/soccer/competition/campeonato-alagoano-2026/77986"),
     GsaCompetition("Campeonato Potiguar", "campeonato-potiguar", f"{BASE_URL}/en/soccer/competition/campeonato-potiguar-2026/78222"),
     GsaCompetition("Campeonato Amazonense", "campeonato-amazonense", f"{BASE_URL}/en/soccer/competition/campeonato-amazonense-serie-a-2026/80555"),
+    GsaCompetition("Campeonato Paraibano", "campeonato-paraibano", f"{BASE_URL}/en/soccer/competition/campeonato-paraibano-unipe-primeira-divisao-2026/78216"),
+    GsaCompetition("Campeonato Maranhense", "campeonato-maranhense", f"{BASE_URL}/en/soccer/competition/campeonato-maranhense-serie-a-2026/80559"),
+    GsaCompetition("Campeonato Piauiense", "campeonato-piauiense", f"{BASE_URL}/en/soccer/competition/campeonato-piauiense-serie-a-2026-2027/80563"),
+    GsaCompetition("Campeonato Sergipano", "campeonato-sergipano", f"{BASE_URL}/en/soccer/competition/campeonato-sergipao-superbet-2026/78057"),
+    GsaCompetition("Campeonato Mato-Grossense", "campeonato-mato-grossense", f"{BASE_URL}/en/soccer/competition/campeonato-mato-grossense-1a-divisao-2026/80561"),
 )
 BY_NAME = {competition.name: competition for competition in COMPETITIONS}
 # Todas estas competições trazem pontes históricas entre níveis do futebol
@@ -62,6 +67,8 @@ STATE_COMPETITION_NAMES = tuple(competition.name for competition in COMPETITIONS
 REGIONAL_BRIDGE_COMPETITION_NAMES = (
     "Copa do Nordeste", "Copa Paulista", "Campeonato Paraense", "Campeonato Alagoano",
     "Campeonato Potiguar", "Campeonato Amazonense",
+    "Campeonato Paraibano", "Campeonato Maranhense", "Campeonato Piauiense",
+    "Campeonato Sergipano", "Campeonato Mato-Grossense",
 )
 HISTORICAL_BRIDGE_COMPETITION_NAMES = STATE_COMPETITION_NAMES + REGIONAL_BRIDGE_COMPETITION_NAMES
 
