@@ -57,6 +57,11 @@ GSA_ONLY_COMPETITIONS = (
     "Campeonato Alagoano",
     "Campeonato Potiguar",
     "Campeonato Amazonense",
+    "Campeonato Paraibano",
+    "Campeonato Maranhense",
+    "Campeonato Piauiense",
+    "Campeonato Sergipano",
+    "Campeonato Mato-Grossense",
 )
 
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
@@ -85,6 +90,11 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Campeonato Alagoano": "Brasil",
     "Campeonato Potiguar": "Brasil",
     "Campeonato Amazonense": "Brasil",
+    "Campeonato Paraibano": "Brasil",
+    "Campeonato Maranhense": "Brasil",
+    "Campeonato Piauiense": "Brasil",
+    "Campeonato Sergipano": "Brasil",
+    "Campeonato Mato-Grossense": "Brasil",
     "Copa do Brasil": "Brasil",
     "Primera División do Chile": "Chile",
     "Primera A Colombiana": "Colômbia",
@@ -108,6 +118,9 @@ BRAZILIAN_STATE_BY_COMPETITION = {
     "Campeonato Catarinense": "SC", "Copa Paulista": "SP",
     "Campeonato Paraense": "PA", "Campeonato Alagoano": "AL",
     "Campeonato Potiguar": "RN", "Campeonato Amazonense": "AM",
+    "Campeonato Paraibano": "PB", "Campeonato Maranhense": "MA",
+    "Campeonato Piauiense": "PI", "Campeonato Sergipano": "SE",
+    "Campeonato Mato-Grossense": "MT",
 }
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
