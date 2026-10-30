@@ -18,12 +18,21 @@ GAME_PATTERN = re.compile(
 PRICE_PATTERN = re.compile(r"\b([A-Z]{2,6}\d?)\s*(\d{1,2})\s*(?:¢|centavos?)", re.IGNORECASE)
 
 
+def clean_title(value: str) -> str:
+    """Remove preços/estatísticas que precedem ou sucedem o título no card."""
+    value = re.sub(r"^.*\b[A-Z]{2,6}\d?\s+\d{1,2}\s*(?:¢|centavos?)\s+", "", value, flags=re.IGNORECASE)
+    value = re.split(r"\s+\d{1,2}:\d{2}\b", value, maxsplit=1)[0]
+    return " ".join(value.split())
+
+
 def page_text(markup: str) -> str:
     """Reduz o HTML renderizado a texto, preservando as sequências dos cards."""
     text = re.sub(r"<script[^>]*>.*?</script>|<style[^>]*>.*?</style>", " ", markup, flags=re.IGNORECASE | re.DOTALL)
-    text = re.sub(r"</?(?:h[1-6]|article)[^>]*>", "\n", text, flags=re.IGNORECASE)
+    marker = "\ue000"
+    text = re.sub(r"</?(?:h[1-6]|article)[^>]*>", marker, text, flags=re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", text)
-    return re.sub(r"[ \t\r\f\v]+", " ", html.unescape(text)).replace("\xa0", " ")
+    text = re.sub(r"\s+", " ", html.unescape(text)).replace("\xa0", " ")
+    return text.replace(marker, "\n")
 
 
 def extract_games(markup: str) -> list[dict[str, object]]:
@@ -31,10 +40,10 @@ def extract_games(markup: str) -> list[dict[str, object]]:
     games: list[dict[str, object]] = []
     seen: set[str] = set()
     for match in GAME_PATTERN.finditer(page_text(markup)):
-        title = " ".join(match.group("title").split())
+        title = clean_title(match.group("title"))
         prices = PRICE_PATTERN.findall(match.group("body"))
         draw_index = next((index for index, (name, _) in enumerate(prices) if name.upper() == "DRAW"), None)
-        if draw_index is None or draw_index == 0 or draw_index + 1 >= len(prices) or title in seen:
+        if not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE) or draw_index is None or draw_index == 0 or draw_index + 1 >= len(prices) or title in seen:
             continue
         home_code, home = prices[draw_index - 1]
         _, draw = prices[draw_index]
