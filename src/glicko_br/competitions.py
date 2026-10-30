@@ -70,6 +70,8 @@ GSA_ONLY_COMPETITIONS = (
     "Campeonato Roraimense",
     "Campeonato Sul-Mato-Grossense",
     "Campeonato Tocantinense",
+    "Supercopa do Brasil",
+    "CONMEBOL Recopa Sul-Americana",
 )
 
 # Fallback para a interface caso um perfil de clube não traga país na ESPN.
@@ -111,6 +113,7 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Campeonato Roraimense": "Brasil",
     "Campeonato Sul-Mato-Grossense": "Brasil",
     "Campeonato Tocantinense": "Brasil",
+    "Supercopa do Brasil": "Brasil",
     "Copa do Brasil": "Brasil",
     "Primera División do Chile": "Chile",
     "Primera A Colombiana": "Colômbia",
