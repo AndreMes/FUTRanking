@@ -513,6 +513,7 @@ async function polymarketOdds(data) {
   const canonicalOddsName = (name, competition = '') => {
     const normalized = normalizedTeamName(name);
     if (/série b/i.test(competition) && ['goianiense', 'ac goianiense', 'atletico goianiense'].includes(normalized)) return 'Atlético Goianiense';
+    if (/série b/i.test(competition) && normalized === 'america') return 'América Mineiro';
     if (/série b/i.test(competition) && normalized === 'recife') return 'Sport';
     if (/série b/i.test(competition) && normalized === 'cr brasil') return 'CRB';
     // No recorte da Série B, "Botafogo FC" é o clube de Ribeirão Preto.
@@ -524,10 +525,15 @@ async function polymarketOdds(data) {
     const canonical = canonicalOddsName(name, competition);
     return canonical === 'Sport' && /série b/i.test(competition) ? 'Sport Recife' : canonical;
   };
+  const divisionForOddsCompetition = competition => /série a/i.test(competition) ? 'Série A' : /série b/i.test(competition) ? 'Série B' : null;
   const knownTeam = (name, competition = '') => {
     const canonical = canonicalOddsName(name, competition);
-    const exact = (data.teams || []).find(team => normalizedTeamName(team.name) === normalizedTeamName(canonical));
-    return exact || (data.teams || []).find(team => namesMatch(team.name, canonical) || namesMatch(canonical, team.name));
+    const division = divisionForOddsCompetition(competition);
+    // Em odds nacionais, o universo de candidatos é a própria divisão. Isso
+    // impede que um homônimo estrangeiro ou de outra liga seja escolhido.
+    const candidates = division ? (data.teams || []).filter(team => (team.divisions || []).includes(division)) : (data.teams || []);
+    const exact = candidates.find(team => normalizedTeamName(team.name) === normalizedTeamName(canonical));
+    return exact || candidates.find(team => namesMatch(team.name, canonical) || namesMatch(canonical, team.name));
   };
   const teamDisplay = (name, competition = '') => {
     const known = knownTeam(name, competition);
@@ -546,10 +552,12 @@ async function polymarketOdds(data) {
     const home = canonicalOddsName(rawHome, game.competition_label || '');
     const away = canonicalOddsName(rawAway, game.competition_label || '');
     if (!home || !away) return null;
-    const exact = (data.fixtures || []).find(fixture =>
+    const division = divisionForOddsCompetition(game.competition_label || '');
+    const fixtures = division ? (data.fixtures || []).filter(fixture => fixture.competition === division) : (data.fixtures || []);
+    const exact = fixtures.find(fixture =>
       normalizedTeamName(fixture.home_team) === normalizedTeamName(home) && normalizedTeamName(fixture.away_team) === normalizedTeamName(away)
     );
-    return exact || (data.fixtures || []).find(fixture =>
+    return exact || fixtures.find(fixture =>
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
