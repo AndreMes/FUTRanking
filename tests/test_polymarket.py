@@ -1,4 +1,4 @@
-from glicko_br.polymarket import event_odds, games_from_events, keyset_url, serie_a_metadata, series_ids_for_sport
+from glicko_br.polymarket import event_odds, games_from_events, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport
 
 
 def test_series_ids_for_brazilian_sport_come_from_metadata():
@@ -10,6 +10,15 @@ def test_metadata_falls_back_to_the_league_name_when_the_visual_route_is_not_an_
     sports = [{"sport": "br1", "name": "Brazilian Serie A", "series": "201", "primaryTagId": 999}]
     assert serie_a_metadata(sports) == sports[0]
     assert series_ids_for_sport(sports) == ["201"]
+
+
+def test_series_b_is_discovered_independently_from_serie_a():
+    sports = [
+        {"sport": "bra", "name": "Brazilian Serie A", "series": "201"},
+        {"sport": "brb", "name": "Brazilian Serie B", "series": "202", "primaryTagId": 1002},
+    ]
+    assert serie_metadata(sports, "serie_b") == sports[1]
+    assert series_ids_for_sport(sports, "serie_b") == ["202"]
 
 
 def test_keyset_url_uses_cursor_not_offset():
