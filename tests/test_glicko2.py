@@ -1,3 +1,4 @@
+from glicko_br.competitions import competition_scope, competition_scope_weight
 from glicko_br.database import HOME_ADVANTAGE, _goal_margin_weight, connect, initialise, latest_ranking, process_pending, rebuild, replace_fixtures, store_match
 from glicko_br.glicko2 import Rating, expected_score, update, OpponentResult
 from glicko_br.model_selection import evaluate
@@ -25,6 +26,16 @@ def test_goal_margin_increases_weight_and_rating_effect():
     assert _goal_margin_weight(3, 0) > 1.0
     assert _goal_margin_weight(8, 0) == 1.8
     assert three_goals.rating > one_goal.rating
+
+
+def test_competition_scope_is_explicit_and_weighted_consistently():
+    assert competition_scope("Série A") == "domestic"
+    assert competition_scope("CONMEBOL Libertadores") == "continental"
+    assert competition_scope("CONMEBOL Recopa Sul-Americana") == "continental"
+    assert competition_scope("FIFA Club World Cup") == "world"
+    assert competition_scope_weight("Série A") == 1.0
+    assert competition_scope_weight("CONMEBOL Libertadores") == 1.15
+    assert competition_scope_weight("FIFA Club World Cup") == 1.25
 
 
 def test_completed_match_is_never_retained_as_fixture():
@@ -98,3 +109,4 @@ def test_model_selection_uses_temporal_holdout_and_caches_result():
     assert len(first["variants"]) == 4
     assert first["test_matches"] > 0
     assert first == second
+
