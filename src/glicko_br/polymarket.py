@@ -14,6 +14,7 @@ from urllib.request import Request, urlopen
 GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
 GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
 MAX_EVENT_PAGES = 5
+HALFTIME_PATTERN = re.compile(r"\b(?:half[ -]?time|half[ -]?time result|first half|second half|1st half|2nd half|primeiro tempo|segundo tempo|intervalo)\b", re.IGNORECASE)
 
 
 def parsed_list(value: object) -> list[object]:
@@ -70,9 +71,19 @@ def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug:
     event_slug = str(slug or event.get("slug") or "").lower()
     if not event_slug:
         return None
+    title = str(event.get("title") or "").strip()
+    if HALFTIME_PATTERN.search(title):
+        return None
     prefix = f"{event_slug}-"
     legs: dict[str, tuple[str, float]] = {}
     for market in markets:
+        market_text = " ".join(str(market.get(field) or "") for field in ("title", "question", "groupItemTitle", "description", "slug"))
+        market_type = str(market.get("sportsMarketType") or market.get("marketType") or "").lower()
+        # Quando a API identifica o tipo, aceitamos somente a moneyline 1X2.
+        if market_type and not any(token in market_type for token in ("moneyline", "1x2", "match winner", "game winner")):
+            continue
+        if HALFTIME_PATTERN.search(market_text):
+            continue
         market_slug = str(market.get("slug") or "").lower()
         suffix = market_slug.removeprefix(prefix)
         if not market_slug.startswith(prefix) or not re.fullmatch(r"[a-z0-9]+", suffix):
@@ -87,10 +98,13 @@ def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug:
         legs[suffix] = (str(market.get("title") or suffix).upper(), price)
     draw_key = next((key for key in legs if key == "draw"), None)
     sides = [(key, value) for key, value in legs.items() if key != draw_key]
-    title = str(event.get("title") or "").strip()
     if draw_key is None or len(sides) != 2 or not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE):
         return None
     (_, (home_code, home)), (_, (away_code, away)) = sides
+    # Um 1X2 de partida inteira tem três probabilidades competitivas. Um preço
+    # praticamente resolvido sinaliza mercado de período/estado indevidamente aninhado.
+    if max(home, legs[draw_key][1], away) >= 0.95:
+        return None
     return {
         "title": title,
         "home": home,
