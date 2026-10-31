@@ -510,28 +510,46 @@ async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds do Brasileirão', 'Teste de fonte');
   el('#content').innerHTML = `<p class="odds-intro">Cotações 1X2 das competições brasileiras publicadas pelo Polymarket. Cada número é o preço atual para <em>Buy Yes</em> do contrato de resultado final; use a comparação para confrontá-lo com a probabilidade do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="general" class="active">Geral</button><button type="button" data-competition="serie_a">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Buy casa</span><span>Buy empate</span><span>Buy visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> A agenda e os preços <em>Buy</em> vêm da Gamma API oficial do Polymarket, pelo campo <em>bestAsk</em> de cada contrato. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
   const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
-  const teamDisplay = name => {
-    const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
+  const canonicalOddsName = (name, competition = '') => {
+    const normalized = normalizedTeamName(name);
+    if (['ac goianiense', 'atletico goianiense'].includes(normalized)) return 'Atlético Goianiense';
+    // No recorte da Série B, "Botafogo FC" é o clube de Ribeirão Preto.
+    // Não aplicamos a regra fora da competição para não ocultar o Botafogo-RJ.
+    if (/série b/i.test(competition) && normalized === 'botafogo') return 'Botafogo-SP';
+    return name;
+  };
+  const knownTeam = (name, competition = '') => {
+    const canonical = canonicalOddsName(name, competition);
+    const exact = (data.teams || []).find(team => normalizedTeamName(team.name) === normalizedTeamName(canonical));
+    return exact || (data.teams || []).find(team => namesMatch(team.name, canonical) || namesMatch(canonical, team.name));
+  };
+  const teamDisplay = (name, competition = '') => {
+    const known = knownTeam(name, competition);
     const content = `${known?.crest ? `<img class="crest" src="${html(known.crest)}" alt="" loading="lazy">` : ''}<span>${html(name)}</span>`;
     return known ? `<a class="odds-team-link" href="clube.html?time=${encodeURIComponent(known.name)}" aria-label="Abrir perfil de ${html(known.name)}">${content}</a>` : content;
   };
-  const selectionDisplay = name => {
-    const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
+  const selectionDisplay = (name, competition = '') => {
+    const known = knownTeam(name, competition);
     return known ? `<a class="odds-team-link" href="clube.html?time=${encodeURIComponent(known.name)}" aria-label="Abrir perfil de ${html(known.name)}">${html(name)}</a>` : html(name);
   };
   const splitTeams = game => String(game.title || '').split(/\s+vs\.?\s+/i).map(part => part.trim());
-  const displayGame = (home, away) => `<span class="odds-teams">${teamDisplay(home)}<span class="odds-vs">×</span>${teamDisplay(away)}</span>`;
+  const displayGame = (home, away, competition = '') => `<span class="odds-teams">${teamDisplay(home, competition)}<span class="odds-vs">×</span>${teamDisplay(away, competition)}</span>`;
   const fixtureFor = game => {
-    const [home, away] = splitTeams(game);
+    const [rawHome, rawAway] = splitTeams(game);
+    const home = canonicalOddsName(rawHome, game.competition_label || '');
+    const away = canonicalOddsName(rawAway, game.competition_label || '');
     if (!home || !away) return null;
-    return (data.fixtures || []).find(fixture =>
+    const exact = (data.fixtures || []).find(fixture =>
+      normalizedTeamName(fixture.home_team) === normalizedTeamName(home) && normalizedTeamName(fixture.away_team) === normalizedTeamName(away)
+    );
+    return exact || (data.fixtures || []).find(fixture =>
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
   let competitions = {}, selectedCompetition = 'general', selectedLabel = 'Geral', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
   const renderSource = () => {
     status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
-    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.competition_label || selectedLabel)} · ${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
+    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); const competition = game.competition_label || selectedLabel; return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '', competition)}<small>${html(competition)} · ${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
   };
   const renderComparison = () => {
     const comparisons = games.flatMap(game => {
@@ -552,7 +570,7 @@ async function polymarketOdds(data) {
     const gamesMatched = new Set(comparisons.map(row => `${row.fixture.home_team}|${row.fixture.away_team}`)).size;
     status.textContent = `${gamesMatched} jogo${gamesMatched === 1 ? '' : 's'} conciliado${gamesMatched === 1 ? '' : 's'} · ${comparisons.length} resultado${comparisons.length === 1 ? '' : 's'} 1X2 · alfa = modelo − preço Buy`;
     const kellyLabel = kellyFraction === 1 ? 'Kelly' : kellyFraction === 0.5 ? 'Kelly/2' : 'Kelly/4';
-    panel.innerHTML = `<div class="row odds-row kelly-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Preço Buy</span><span>Alfa</span><span>${kellyLabel}</span></div>${comparisons.map(row => `<article class="row odds-row kelly-row"><span class="odds-game">${displayGame(row.fixture.home_team, row.fixture.away_team)}<small>${html(row.fixture.competition || 'Série A')}</small></span><span class="odds-selection">${selectionDisplay(row.selection)}</span><strong class="odds-model">${(row.model * 100).toFixed(1)}%</strong><strong class="odds-market">${(row.market * 100).toFixed(1)}%</strong><strong class="odds-alpha ${row.alpha >= 0 ? 'positive' : 'negative'}">${row.alpha >= 0 ? '+' : ''}${(row.alpha * 100).toFixed(1)} p.p.</strong><strong class="odds-kelly" title="Fração teórica de Kelly, limitada a 0% quando o alfa é negativo">${(row.kelly * kellyFraction * 100).toFixed(1)}%</strong></article>`).join('') || `<div class="odds-warning"><p>Não há fixture publicado que coincida com os ${games.length} jogo${games.length === 1 ? '' : 's'} desta coleta. Quando a agenda correspondente estiver no arquivo do ranking, a comparação aparecerá aqui.</p></div>`}`;
+    panel.innerHTML = `<div class="row odds-row kelly-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Preço Buy</span><span>Alfa</span><span>${kellyLabel}</span></div>${comparisons.map(row => `<article class="row odds-row kelly-row"><span class="odds-game">${displayGame(row.fixture.home_team, row.fixture.away_team, row.fixture.competition)}<small>${html(row.fixture.competition || 'Série A')}</small></span><span class="odds-selection">${selectionDisplay(row.selection, row.fixture.competition)}</span><strong class="odds-model">${(row.model * 100).toFixed(1)}%</strong><strong class="odds-market">${(row.market * 100).toFixed(1)}%</strong><strong class="odds-alpha ${row.alpha >= 0 ? 'positive' : 'negative'}">${row.alpha >= 0 ? '+' : ''}${(row.alpha * 100).toFixed(1)} p.p.</strong><strong class="odds-kelly" title="Fração teórica de Kelly, limitada a 0% quando o alfa é negativo">${(row.kelly * kellyFraction * 100).toFixed(1)}%</strong></article>`).join('') || `<div class="odds-warning"><p>Não há fixture publicado que coincida com os ${games.length} jogo${games.length === 1 ? '' : 's'} desta coleta. Quando a agenda correspondente estiver no arquivo do ranking, a comparação aparecerá aqui.</p></div>`}`;
   };
   const selectCompetition = key => {
     selectedCompetition = key;
