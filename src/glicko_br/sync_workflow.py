@@ -65,6 +65,10 @@ def main() -> None:
                 if not total:
                     raise EspnError('A carga histórica ESPN não retornou resultados; banco anterior preservado.')
                 store_source_payload(database, "espn-bootstrap", ESPN_BOOTSTRAP_VERSION, "{}")
+                # A reconstrução ESPN é a etapa mais longa. Confirma-a antes
+                # de iniciar as fontes complementares para que uma falha nelas
+                # não obrigue a repetir todo o histórico na execução seguinte.
+                database.commit()
                 print(f'Carga histórica ESPN concluída: {total} resultados.')
             else:
                 # Em rotina normal, retoma o último sucesso com um dia extra de
@@ -106,6 +110,7 @@ def main() -> None:
             if gsa_bootstrap:
                 total = bootstrap_serie_d(database, client=gsa_client, today=today)
                 store_source_payload(database, "global-sports-archive-bootstrap", GSA_SERIE_D_BOOTSTRAP_VERSION, "{}")
+                database.commit()
                 print(f'Carga histórica Série D concluída: {total} partidas GSA.')
             state_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
@@ -114,6 +119,7 @@ def main() -> None:
             if state_bootstrap:
                 total = bootstrap_state_competitions(database, client=gsa_client, today=today)
                 store_source_payload(database, "global-sports-archive-bootstrap", GSA_STATE_BOOTSTRAP_VERSION, "{}")
+                database.commit()
                 print(f'Carga histórica dos estaduais concluída: {total} partidas GSA.')
             regional_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
@@ -122,6 +128,7 @@ def main() -> None:
             if regional_bootstrap:
                 total = bootstrap_regional_bridges(database, client=gsa_client, today=today)
                 store_source_payload(database, "global-sports-archive-bootstrap", GSA_REGIONAL_BRIDGES_BOOTSTRAP_VERSION, "{}")
+                database.commit()
                 print(f'Carga histórica das pontes regionais concluída: {total} partidas GSA.')
             national_cups_bootstrap = not database.execute(
                 "SELECT 1 FROM source_payloads WHERE source='global-sports-archive-bootstrap' AND request_path=? LIMIT 1",
@@ -130,6 +137,7 @@ def main() -> None:
             if national_cups_bootstrap:
                 total = bootstrap_national_cups(database, client=gsa_client, today=today)
                 store_source_payload(database, "global-sports-archive-bootstrap", GSA_NATIONAL_CUPS_BOOTSTRAP_VERSION, "{}")
+                database.commit()
                 print(f'Carga histórica das copas nacionais concluída: {total} partidas GSA.')
             current_gsa_version = f"global-sports-archive-current-{today.year}-v2-states"
             current_gsa_bootstrap = not database.execute(
@@ -142,6 +150,7 @@ def main() -> None:
             gsa_total, gsa_reused = sync_gsa_current(database, client=gsa_client, today=today, full=current_gsa_bootstrap or args.full)
             if current_gsa_bootstrap:
                 store_source_payload(database, "global-sports-archive-current", current_gsa_version, "{}")
+                database.commit()
             print(f'Global Sports Archive: {gsa_client.request_count} chamadas realizadas; {gsa_total} partidas verificadas, {gsa_reused} conciliadas com a ESPN.')
             removed = prune_stale_fixtures(database, before=(today - timedelta(days=1)).isoformat())
             if removed:
@@ -156,3 +165,4 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
+
