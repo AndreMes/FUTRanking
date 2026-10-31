@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 
 GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
 GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
+CLOB_PRICE_URL = "https://clob.polymarket.com/price"
 MAX_EVENT_PAGES = 5
 HALFTIME_PATTERN = re.compile(r"\b(?:half[ -]?time|half[ -]?time result|first half|second half|1st half|2nd half|primeiro tempo|segundo tempo|intervalo)\b", re.IGNORECASE)
 DIVISIONS = {
@@ -31,6 +32,40 @@ def parsed_list(value: object) -> list[object]:
             return []
         return parsed if isinstance(parsed, list) else []
     return []
+
+
+def yes_token_id(market: dict[str, object]) -> str | None:
+    """Retorna o token do resultado ``Yes`` do contrato binário.
+
+    ``outcomePrices`` do Gamma é um snapshot/último preço e não é, por si só,
+    a cotação de compra mostrada no livro. A ordem de ``outcomes`` e
+    ``clobTokenIds`` é paralela, portanto esta função evita supor que o índice
+    zero sempre é o contrato que queremos precificar.
+    """
+    outcomes = parsed_list(market.get("outcomes"))
+    tokens = parsed_list(market.get("clobTokenIds"))
+    for index, outcome in enumerate(outcomes):
+        if str(outcome).strip().casefold() in {"yes", "sim"} and index < len(tokens):
+            token = str(tokens[index]).strip()
+            return token or None
+    return None
+
+
+def gamma_yes_price(market: dict[str, object]) -> float | None:
+    """Fallback determinístico usado somente nos testes e em dados legados."""
+    outcomes = parsed_list(market.get("outcomes"))
+    prices = parsed_list(market.get("outcomePrices"))
+    yes_index = next(
+        (index for index, outcome in enumerate(outcomes) if str(outcome).strip().casefold() in {"yes", "sim"}),
+        0 if not outcomes else None,
+    )
+    if yes_index is None:
+        return None
+    try:
+        price = float(prices[yes_index])
+    except (IndexError, TypeError, ValueError):
+        return None
+    return price if 0 < price < 1 else None
 
 
 def serie_metadata(sports: object, division: str) -> dict[str, object] | None:
@@ -76,7 +111,12 @@ def keyset_url(filters: list[tuple[str, str]], cursor: str | None = None) -> str
     return f"{GAMMA_EVENTS_KEYSET_URL}?{urlencode(query)}"
 
 
-def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug: str | None = None) -> dict[str, object] | None:
+def event_odds(
+    event: dict[str, object],
+    markets: list[dict[str, object]],
+    slug: str | None = None,
+    price_for_market=None,
+) -> dict[str, object] | None:
     """Reconstrói o 1X2 pelos três contratos binários de um evento da API."""
     event_slug = str(slug or event.get("slug") or "").lower()
     if not event_slug:
@@ -98,12 +138,8 @@ def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug:
         suffix = market_slug.removeprefix(prefix)
         if not market_slug.startswith(prefix) or not re.fullmatch(r"[a-z0-9]+", suffix):
             continue
-        prices = parsed_list(market.get("outcomePrices"))
-        try:
-            price = float(prices[0])
-        except (IndexError, TypeError, ValueError):
-            continue
-        if not 0 < price < 1:
+        price = price_for_market(market) if price_for_market else gamma_yes_price(market)
+        if price is None:
             continue
         legs[suffix] = (str(market.get("title") or suffix).upper(), price)
     draw_key = next((key for key in legs if key == "draw"), None)
@@ -126,7 +162,7 @@ def event_odds(event: dict[str, object], markets: list[dict[str, object]], slug:
     }
 
 
-def games_from_events(events: object) -> list[dict[str, object]]:
+def games_from_events(events: object, price_for_market=None) -> list[dict[str, object]]:
     """Extrai um registro por partida; os mercados já vêm aninhados nos eventos."""
     if not isinstance(events, list):
         return []
@@ -135,7 +171,11 @@ def games_from_events(events: object) -> list[dict[str, object]]:
     for event in events:
         if not isinstance(event, dict):
             continue
-        game = event_odds(event, [market for market in event.get("markets") or [] if isinstance(market, dict)])
+        game = event_odds(
+            event,
+            [market for market in event.get("markets") or [] if isinstance(market, dict)],
+            price_for_market=price_for_market,
+        )
         if not game or game["event_slug"] in seen:
             continue
         seen.add(game["event_slug"])
@@ -151,6 +191,23 @@ def request_json(url: str, opener) -> object:
     except HTTPError as error:
         detail = error.read().decode("utf-8", "replace")[:500]
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
+
+
+def clob_yes_buy_price(market: dict[str, object], opener) -> float | None:
+    """Lê a melhor oferta de compra atual do token Yes no CLOB oficial.
+
+    É a mesma semântica do botão ``Buy`` da interface pública. Não usamos o
+    snapshot ``outcomePrices`` do Gamma para gerar alfa ou Kelly.
+    """
+    token_id = yes_token_id(market)
+    if not token_id:
+        return None
+    try:
+        payload = request_json(f"{CLOB_PRICE_URL}?{urlencode({'token_id': token_id, 'side': 'BUY'})}", opener)
+        price = float(payload.get("price")) if isinstance(payload, dict) else None
+    except (RuntimeError, TypeError, ValueError):
+        return None
+    return price if price is not None and 0 < price < 1 else None
 
 
 def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[object], int]:
@@ -181,14 +238,14 @@ def fetch_division_odds(sports: object, division: str, opener) -> dict[str, obje
     if not series_ids:
         raise RuntimeError(f"o catálogo não identificou {label} brasileira por série")
     events, pages = fetch_event_pages([("series_id", identifier) for identifier in series_ids], opener)
-    games = games_from_events(events)
+    games = games_from_events(events, price_for_market=lambda market: clob_yes_buy_price(market, opener))
     # A documentação expõe a tag primária da liga. Se a série ainda não tiver
     # eventos abertos, tentamos a própria tag sem misturar campeonatos.
     fallback_used = False
     if not games and metadata and str(metadata.get("primaryTagId") or "").isdigit():
         events, tag_pages = fetch_event_pages([("tag_id", str(metadata["primaryTagId"]))], opener)
         pages += tag_pages
-        games = games_from_events(events)
+        games = games_from_events(events, price_for_market=lambda market: clob_yes_buy_price(market, opener))
         fallback_used = True
     return {
         "label": label,
@@ -200,6 +257,7 @@ def fetch_division_odds(sports: object, division: str, opener) -> dict[str, obje
             "pages": pages,
             "events": len(events),
             "tag_fallback": fallback_used,
+            "price_source": "CLOB API · melhor preço de compra do token Yes",
         },
         "error": None if games else f"A API respondeu, mas não retornou mercados 1X2 ativos para a {label}.",
     }
@@ -218,7 +276,7 @@ def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_url": GAMMA_EVENTS_KEYSET_URL,
-        "source": "Polymarket Gamma API · events/keyset",
+        "source": "Polymarket Gamma API + CLOB API · preços Buy do token Yes",
         "competitions": competitions,
         # Compatibilidade com a página já publicada até ela ler competitions.
         "games": serie_a["games"],
@@ -237,7 +295,7 @@ def main() -> None:
         payload = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "source_url": GAMMA_EVENTS_KEYSET_URL,
-            "source": "Polymarket Gamma API · events/keyset",
+            "source": "Polymarket Gamma API + CLOB API · preços Buy do token Yes",
             "games": [],
             "error": f"Falha ao consultar a API: {exc}",
         }
