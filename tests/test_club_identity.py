@@ -31,6 +31,16 @@ def test_ambiguous_names_are_not_merged_by_text_similarity():
     assert database.execute("SELECT COUNT(*) FROM clubs WHERE name LIKE 'Botafogo%'").fetchone()[0] == 2
 
 
+def test_identity_collision_never_creates_a_self_match():
+    database = connect(":memory:")
+    initialise(database)
+
+    stored = store_match(database, match("collision", "Palmeiras", "SE Palmeiras"))
+
+    assert stored is False
+    assert database.execute("SELECT COUNT(*) FROM matches").fetchone()[0] == 0
+
+
 def test_legacy_alias_migration_merges_existing_matches_and_resets_processing():
     database = connect(":memory:")
     initialise(database)
