@@ -8,7 +8,7 @@ from math import log
 from pathlib import Path
 
 from .glicko2 import Rating, OpponentResult, expected_score, update
-from .competitions import BRAZILIAN_STATE_BY_COMPETITION, COMPETITION_NAMES
+from .competitions import BRAZILIAN_STATE_BY_COMPETITION, COMPETITION_NAMES, competition_scope_weight
 from .club_identity import alias_key, canonical_name, must_remain_separate, provider_match_key
 from .neutral_sites import is_neutral_event
 
@@ -16,7 +16,7 @@ COMPETITIONS = COMPETITION_NAMES
 HOME_ADVANTAGE = 80.0
 GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
-RATING_MODEL_VERSION = "glicko2-home80-goal-margin-knockout-v4"
+RATING_MODEL_VERSION = "glicko2-home80-goal-margin-knockout-scope-v5"
 MAX_INACTIVITY_DAYS = 90
 MAX_RANKING_RD = 120.0
 
@@ -513,7 +513,11 @@ def _apply_timestamp_group(
         away_offset = -home_offset
         home_score = 1.0 if game["home_goals"] > game["away_goals"] else 0.5 if game["home_goals"] == game["away_goals"] else 0.0
         forecasts.append((game["external_id"], expected_score(home, away, home_offset), expected_score(away, home, away_offset), home_score))
-        weight = _goal_margin_weight(game["home_goals"], game["away_goals"]) * knockout_stage_weight(game["stage"])
+        weight = (
+            _goal_margin_weight(game["home_goals"], game["away_goals"])
+            * knockout_stage_weight(game["stage"])
+            * competition_scope_weight(game["competition"])
+        )
         outcomes[game["home_club_id"]].append(OpponentResult(away, home_score, home_offset, weight))
         outcomes[game["away_club_id"]].append(OpponentResult(home, 1.0 - home_score, away_offset, weight))
     after = {club: update(before[club], results) for club, results in outcomes.items()}
