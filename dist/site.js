@@ -512,11 +512,17 @@ async function polymarketOdds(data) {
   const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
   const canonicalOddsName = (name, competition = '') => {
     const normalized = normalizedTeamName(name);
-    if (['ac goianiense', 'atletico goianiense'].includes(normalized)) return 'Atlético Goianiense';
+    if (/série b/i.test(competition) && ['goianiense', 'ac goianiense', 'atletico goianiense'].includes(normalized)) return 'Atlético Goianiense';
+    if (/série b/i.test(competition) && normalized === 'recife') return 'Sport';
+    if (/série b/i.test(competition) && normalized === 'cr brasil') return 'CRB';
     // No recorte da Série B, "Botafogo FC" é o clube de Ribeirão Preto.
     // Não aplicamos a regra fora da competição para não ocultar o Botafogo-RJ.
     if (/série b/i.test(competition) && normalized === 'botafogo') return 'Botafogo-SP';
     return name;
+  };
+  const oddsDisplayName = (name, competition = '') => {
+    const canonical = canonicalOddsName(name, competition);
+    return canonical === 'Sport' && /série b/i.test(competition) ? 'Sport Recife' : canonical;
   };
   const knownTeam = (name, competition = '') => {
     const canonical = canonicalOddsName(name, competition);
@@ -525,7 +531,8 @@ async function polymarketOdds(data) {
   };
   const teamDisplay = (name, competition = '') => {
     const known = knownTeam(name, competition);
-    const content = `${known?.crest ? `<img class="crest" src="${html(known.crest)}" alt="" loading="lazy">` : ''}<span>${html(name)}</span>`;
+    const displayName = oddsDisplayName(name, competition);
+    const content = `${known?.crest ? `<img class="crest" src="${html(known.crest)}" alt="" loading="lazy">` : ''}<span>${html(displayName)}</span>`;
     return known ? `<a class="odds-team-link" href="clube.html?time=${encodeURIComponent(known.name)}" aria-label="Abrir perfil de ${html(known.name)}">${content}</a>` : content;
   };
   const selectionDisplay = (name, competition = '') => {
