@@ -508,7 +508,7 @@ function brazilSerieASeries(sports) {
 
 async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds do Brasileirão', 'Teste de fonte');
-  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente das Séries A e B, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="serie_a" class="active">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow na API oficial do Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
+  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 das competições brasileiras publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="general" class="active">Geral</button><button type="button" data-competition="serie_a">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow na API oficial do Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
   const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
   const teamDisplay = name => {
     const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
@@ -523,10 +523,10 @@ async function polymarketOdds(data) {
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
-  let competitions = {}, selectedCompetition = 'serie_a', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
+  let competitions = {}, selectedCompetition = 'general', selectedLabel = 'Geral', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
   const renderSource = () => {
     status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
-    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
+    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.competition_label || selectedLabel)} · ${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
   };
   const renderComparison = () => {
     const comparisons = games.flatMap(game => {
@@ -551,9 +551,18 @@ async function polymarketOdds(data) {
   };
   const selectCompetition = key => {
     selectedCompetition = key;
-    const competition = competitions[key] || { games: [], error: 'Esta divisão ainda não possui coleta publicada.' };
-    games = Array.isArray(competition.games) ? competition.games : [];
-    sourceError = competition.error || '';
+    const entries = Object.entries(competitions);
+    if (key === 'general') {
+      selectedLabel = 'Geral';
+      games = entries.flatMap(([, competition]) => (competition.games || []).map(game => ({ ...game, competition_label: competition.label || 'Competição brasileira' })));
+      sourceError = games.length ? '' : entries.map(([, competition]) => competition.error).filter(Boolean).join(' · ');
+    } else {
+      const competition = competitions[key] || { label: key, games: [], error: 'Esta divisão ainda não possui coleta publicada.' };
+      selectedLabel = competition.label || key;
+      games = (competition.games || []).map(game => ({ ...game, competition_label: selectedLabel }));
+      sourceError = competition.error || '';
+    }
+    games.sort((left, right) => String(left.scheduled_at || '').localeCompare(String(right.scheduled_at || '')));
     comparing = false;
     mode.textContent = 'Comparar com o modelo';
     kellyControl.classList.remove('visible');
