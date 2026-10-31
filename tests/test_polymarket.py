@@ -51,3 +51,21 @@ def test_event_odds_uses_moneyline_contract_suffixes():
         {"slug": "bra-cor1-mir-2026-10-30-total-2pt5", "title": "O 2.5", "outcomePrices": '["0.49", "0.51"]'},
     ]
     assert event_odds(event, markets)["codes"] == {"home": "COR1", "away": "MIR"}
+
+
+def test_games_from_events_excludes_halftime_and_non_competitive_triplets():
+    markets = [
+        {"slug": "bra-cor-mir-cor", "title": "COR", "outcomePrices": '["0.52", "0.48"]', "sportsMarketType": "moneyline"},
+        {"slug": "bra-cor-mir-draw", "title": "DRAW", "outcomePrices": '["0.27", "0.73"]', "sportsMarketType": "moneyline"},
+        {"slug": "bra-cor-mir-mir", "title": "MIR", "outcomePrices": '["0.22", "0.78"]', "sportsMarketType": "moneyline"},
+    ]
+    events = [
+        {"slug": "bra-cor-mir", "title": "Corinthians vs. Mirassol", "markets": markets},
+        {"slug": "bra-cor-mir-half", "title": "Corinthians vs. Mirassol - Halftime Result", "markets": markets},
+        {"slug": "bra-cor-mir-resolved", "title": "Corinthians vs. Mirassol", "markets": [
+            {**markets[0], "slug": "bra-cor-mir-resolved-cor", "outcomePrices": '["1.0", "0.0"]'},
+            {**markets[1], "slug": "bra-cor-mir-resolved-draw", "outcomePrices": '["0.004", "0.996"]'},
+            {**markets[2], "slug": "bra-cor-mir-resolved-mir", "outcomePrices": '["0.001", "0.999"]'},
+        ]},
+    ]
+    assert [game["title"] for game in games_from_events(events)] == ["Corinthians vs. Mirassol"]
