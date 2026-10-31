@@ -505,7 +505,7 @@ function brazilSerieASeries(sports) {
 
 async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds da Série A', 'Teste de fonte');
-  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente do Campeonato Brasileiro, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow diretamente da página pública do Brasileirão no Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
+  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente do Campeonato Brasileiro, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow na API oficial do Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
   const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode');
   const teamDisplay = name => {
     const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
@@ -520,10 +520,10 @@ async function polymarketOdds(data) {
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
-  let games = [], collectedAt = '', comparing = false;
+  let games = [], collectedAt = '', sourceError = '', comparing = false;
   const renderSource = () => {
     status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
-    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>Esta coleta não encontrou jogos 1X2.</p></div>`}`;
+    panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
   };
   const renderComparison = () => {
     const comparisons = games.flatMap(game => {
@@ -558,6 +558,7 @@ async function polymarketOdds(data) {
       const payload = await response.json();
       games = Array.isArray(payload.games) ? payload.games : [];
       collectedAt = payload.generated_at ? time(payload.generated_at) : 'horário não informado';
+      sourceError = payload.error || '';
       mode.disabled = false;
       renderSource();
     } catch (error) {
