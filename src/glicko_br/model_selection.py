@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import date, datetime, timezone
 from math import log
 
-from .competitions import COMPETITION_CATALOG_VERSION
+from .competitions import COMPETITION_CATALOG_VERSION, competition_scope_weight
 from .database import (
     GOAL_MARGIN_WEIGHT_COEFFICIENT,
     MAX_GOAL_MARGIN_WEIGHT,
@@ -19,7 +19,7 @@ from .database import (
 from .glicko2 import OpponentResult, Rating, expected_score, update
 
 # A grade é custosa e deve ser refeita só uma vez por mês, não em cada cron diário.
-EVALUATION_VERSION = f"rolling-home-grid-v3|{COMPETITION_CATALOG_VERSION}|{date.today():%Y-%m}"
+EVALUATION_VERSION = f"rolling-home-grid-v4|{COMPETITION_CATALOG_VERSION}|{date.today():%Y-%m}"
 HOME_ADVANTAGES = (65.0, 70.0, 75.0, 80.0)
 # A primeira rodada não distinguiu o peso da margem; nesta rodada ele é fixado
 # no valor publicado, para isolar o efeito do mando de campo.
@@ -101,7 +101,11 @@ def _evaluate_variant(groups: list[list], window_starts: list[int], home_advanta
                     metrics["observed_total"] += score
                     metrics["squared_error"] += (expected - score) ** 2
                     metrics["absolute_error"] += abs(expected - score)
-            weight = _margin_weight(game["home_goals"], game["away_goals"], goal_coefficient) * knockout_stage_weight(game["stage"])
+            weight = (
+                _margin_weight(game["home_goals"], game["away_goals"], goal_coefficient)
+                * knockout_stage_weight(game["stage"])
+                * competition_scope_weight(game["competition"])
+            )
             outcomes[home_id].append(OpponentResult(before[away_id], score, offset, weight))
             outcomes[away_id].append(OpponentResult(before[home_id], 1.0 - score, -offset, weight))
         after = {club: update(before[club], results) for club, results in outcomes.items()}
@@ -121,7 +125,7 @@ def evaluate(database) -> dict[str, object]:
     if existing:
         return json.loads(existing["payload"])
     rows = database.execute(
-        """SELECT external_id, played_at, neutral_site, home_advantage, stage, home_club_id, away_club_id, home_goals, away_goals
+        """SELECT external_id, played_at, competition, neutral_site, home_advantage, stage, home_club_id, away_club_id, home_goals, away_goals
            FROM matches ORDER BY played_at, external_id"""
     ).fetchall()
     groups = _groups(rows)
@@ -174,3 +178,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
