@@ -57,7 +57,7 @@ const oddsTeamsStyle = document.createElement('style');
 oddsTeamsStyle.textContent = '.odds-teams{display:flex;align-items:center;gap:8px;font-weight:850}.odds-teams .crest{width:27px;height:27px;object-fit:contain}.odds-team-link{display:inline-flex;align-items:center;gap:7px;min-width:0;color:inherit;text-decoration:none}.odds-team-link:hover,.odds-team-link:focus-visible{color:#075c42;text-decoration:underline;text-decoration-thickness:2px;text-underline-offset:3px}.odds-vs{color:#5b6f68;font-size:.75rem;font-weight:800}';
 document.head.append(oddsTeamsStyle);
 const oddsLayoutStyle = document.createElement('style');
-oddsLayoutStyle.textContent = '.odds-competition-tabs{display:flex;gap:8px;margin:20px 0 2px}.odds-competition-tabs button{border:1px solid #d8d0c1;border-radius:999px;background:#fffdf8;color:#10231d;padding:8px 13px;font:inherit;font-size:.85rem;font-weight:850;cursor:pointer}.odds-competition-tabs button.active{background:#075c42;border-color:#075c42;color:#fff}.odds-panel .brazil-odds-row{grid-template-columns:minmax(300px,420px) repeat(3,120px);justify-content:center;gap:28px}.odds-panel .kelly-row{grid-template-columns:minmax(250px,360px) 145px 86px 100px 90px 76px;justify-content:center;gap:18px}.odds-panel .brazil-odds-row>span:not(:first-child),.odds-panel .brazil-odds-row>strong,.odds-panel .kelly-row>span:not(:first-child),.odds-panel .kelly-row>strong{text-align:center!important}.kelly-control{display:none;gap:5px;padding:4px;border:1px solid #d8d0c1;border-radius:10px;background:#fffdf8}.kelly-control.visible{display:flex}.kelly-control button{border:0;border-radius:6px;background:transparent;color:#34473f;padding:7px 9px;font:inherit;font-size:.76rem;font-weight:850;cursor:pointer}.kelly-control button.active{background:#075c42;color:#fff}@media(max-width:700px){.odds-competition-tabs{margin-top:16px}.odds-panel .brazil-odds-row{grid-template-columns:260px repeat(3,125px);justify-content:start;gap:14px}.odds-panel .kelly-row{grid-template-columns:245px 115px 82px 96px 80px 92px;justify-content:start;gap:14px}.kelly-control.visible{width:100%;justify-content:space-between}.kelly-control button{flex:1}}';
+oddsLayoutStyle.textContent = '.odds-competition-tabs{display:flex;gap:8px;margin:20px 0 2px}.odds-competition-tabs button{border:1px solid #d8d0c1;border-radius:999px;background:#fffdf8;color:#10231d;padding:8px 13px;font:inherit;font-size:.85rem;font-weight:850;cursor:pointer}.odds-competition-tabs button.active{background:#075c42;border-color:#075c42;color:#fff}.odds-panel .brazil-odds-row{grid-template-columns:minmax(300px,420px) repeat(3,120px);justify-content:center;gap:28px}.odds-panel .kelly-row{grid-template-columns:minmax(250px,360px) 145px 86px 100px 90px 76px;justify-content:center;gap:18px}.odds-panel .brazil-odds-row>span:not(:first-child),.odds-panel .brazil-odds-row>strong,.odds-panel .kelly-row>span:not(:first-child),.odds-panel .kelly-row>strong{text-align:center!important}.kelly-control,.odds-sort-control{display:none;gap:5px;padding:4px;border:1px solid #d8d0c1;border-radius:10px;background:#fffdf8}.kelly-control.visible,.odds-sort-control.visible{display:flex}.kelly-control button,.odds-sort-control button{border:0;border-radius:6px;background:transparent;color:#34473f;padding:7px 9px;font:inherit;font-size:.76rem;font-weight:850;cursor:pointer}.kelly-control button.active,.odds-sort-control button.active{background:#075c42;color:#fff}@media(max-width:700px){.odds-competition-tabs{margin-top:16px}.odds-panel .brazil-odds-row{grid-template-columns:260px repeat(3,125px);justify-content:start;gap:14px}.odds-panel .kelly-row{grid-template-columns:245px 115px 82px 96px 80px 92px;justify-content:start;gap:14px}.kelly-control.visible,.odds-sort-control.visible{width:100%;justify-content:space-between}.kelly-control button,.odds-sort-control button{flex:1}}';
 document.head.append(oddsLayoutStyle);
 const oddsComparisonStyle = document.createElement('style');
 oddsComparisonStyle.textContent = '.odds-mode{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-mode:hover{background:#064b36}.odds-mode:disabled{opacity:.55;cursor:wait}.kelly-row{grid-template-columns:minmax(190px,1.35fr) minmax(105px,.75fr) 82px 96px 80px 92px}.odds-alpha.negative{color:#a13d34}.odds-alpha.positive{color:#075c42}.odds-kelly{text-align:right;font-variant-numeric:tabular-nums;color:#075c42}.odds-mode-note{margin-top:7px;color:#5b6f68;font-size:.78rem}@media(max-width:700px){.odds-mode{width:100%}.odds-row.kelly-row{min-width:760px!important;grid-template-columns:245px 115px 82px 96px 80px 92px!important}}';
@@ -508,8 +508,8 @@ function brazilSerieASeries(sports) {
 
 async function polymarketOdds(data) {
   document.body.innerHTML = shell('Odds do Brasileirão', 'Teste de fonte');
-  el('#content').innerHTML = `<p class="odds-intro">Cotações 1X2 das competições brasileiras publicadas pelo Polymarket. Cada número é o preço atual para <em>Buy Yes</em> do contrato de resultado final; use a comparação para confrontá-lo com a probabilidade do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="general" class="active">Geral</button><button type="button" data-competition="serie_a">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Buy casa</span><span>Buy empate</span><span>Buy visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> A agenda e os preços <em>Buy</em> vêm da Gamma API oficial do Polymarket, pelo campo <em>bestAsk</em> de cada contrato. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
-  const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
+  el('#content').innerHTML = `<p class="odds-intro">Cotações 1X2 das competições brasileiras publicadas pelo Polymarket. Cada número é o preço atual para <em>Buy Yes</em> do contrato de resultado final; use a comparação para confrontá-lo com a probabilidade do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="general" class="active">Geral</button><button type="button" data-competition="serie_a">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="odds-sort-control" aria-label="Ordenar comparação"><button type="button" data-odds-sort="alpha" class="active">Maior alfa</button><button type="button" data-odds-sort="kickoff">Começam primeiro</button></div><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Buy casa</span><span>Buy empate</span><span>Buy visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> A agenda e os preços <em>Buy</em> vêm da Gamma API oficial do Polymarket, pelo campo <em>bestAsk</em> de cada contrato. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
+  const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), sortControl = el('.odds-sort-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], sortButtons = [...document.querySelectorAll('[data-odds-sort]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
   const canonicalOddsName = (name, competition = '') => {
     const normalized = normalizedTeamName(name);
     if (/série b/i.test(competition) && ['goianiense', 'ac goianiense', 'atletico goianiense'].includes(normalized)) return 'Atlético Goianiense';
@@ -561,8 +561,10 @@ async function polymarketOdds(data) {
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
-  let competitions = {}, selectedCompetition = 'general', selectedLabel = 'Geral', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
+  let competitions = {}, selectedCompetition = 'general', selectedLabel = 'Geral', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1, comparisonSort = 'alpha';
   const renderSource = () => {
+    sortControl.classList.remove('visible');
+    kellyControl.classList.remove('visible');
     status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
     panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); const competition = game.competition_label || selectedLabel, kickoff = game.scheduled_at ? matchTime(game.scheduled_at) : 'horário não informado'; return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '', competition)}<small>${html(competition)} · ${html(kickoff)} · ${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
   };
@@ -581,9 +583,15 @@ async function polymarketOdds(data) {
         const kelly = Math.max(0, Math.min(1, alpha / (1 - row.market)));
         return { ...row, fixture, alpha, kelly };
       });
-    }).filter(row => row.alpha >= 0).sort((left, right) => right.alpha - left.alpha || String(left.fixture.home_team).localeCompare(String(right.fixture.home_team), 'pt-BR'));
+    }).filter(row => row.alpha >= 0);
+    const kickoffAt = row => Date.parse(row.fixture.scheduled_at || '') || Number.POSITIVE_INFINITY;
+    comparisons.sort((left, right) => comparisonSort === 'kickoff'
+      ? kickoffAt(left) - kickoffAt(right) || right.alpha - left.alpha
+      : right.alpha - left.alpha || kickoffAt(left) - kickoffAt(right));
+    sortControl.classList.add('visible');
+    kellyControl.classList.add('visible');
     const gamesMatched = new Set(comparisons.map(row => `${row.fixture.home_team}|${row.fixture.away_team}`)).size;
-    status.textContent = `${gamesMatched} jogo${gamesMatched === 1 ? '' : 's'} conciliado${gamesMatched === 1 ? '' : 's'} · ${comparisons.length} resultado${comparisons.length === 1 ? '' : 's'} com alfa não negativo · alfa = modelo − preço Buy`;
+    status.textContent = `${gamesMatched} jogo${gamesMatched === 1 ? '' : 's'} conciliado${gamesMatched === 1 ? '' : 's'} · ${comparisons.length} resultado${comparisons.length === 1 ? '' : 's'} com alfa não negativo · ordenado por ${comparisonSort === 'kickoff' ? 'início mais próximo' : 'maior alfa'} · alfa = modelo − preço Buy`;
     const kellyLabel = kellyFraction === 1 ? 'Kelly' : kellyFraction === 0.5 ? 'Kelly/2' : 'Kelly/4';
     panel.innerHTML = `<div class="row odds-row kelly-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Preço Buy</span><span>Alfa</span><span>${kellyLabel}</span></div>${comparisons.map(row => { const kickoff = row.fixture.scheduled_at ? matchTime(row.fixture.scheduled_at) : 'horário não informado'; return `<article class="row odds-row kelly-row"><span class="odds-game">${displayGame(row.fixture.home_team, row.fixture.away_team, row.fixture.competition)}<small>${html(row.fixture.competition || 'Série A')} · ${html(kickoff)}</small></span><span class="odds-selection">${selectionDisplay(row.selection, row.fixture.competition)}</span><strong class="odds-model">${(row.model * 100).toFixed(1)}%</strong><strong class="odds-market">${(row.market * 100).toFixed(1)}%</strong><strong class="odds-alpha positive">+${(row.alpha * 100).toFixed(1)} p.p.</strong><strong class="odds-kelly" title="Fração teórica de Kelly">${(row.kelly * kellyFraction * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>Não há resultado com alfa não negativo entre os ${games.length} jogos desta coleta que puderam ser conciliados ao ranking.</p></div>`}`;
   };
@@ -603,6 +611,7 @@ async function polymarketOdds(data) {
     games.sort((left, right) => String(left.scheduled_at || '').localeCompare(String(right.scheduled_at || '')));
     comparing = false;
     mode.textContent = 'Comparar com o modelo';
+    sortControl.classList.remove('visible');
     kellyControl.classList.remove('visible');
     kellyControl.setAttribute('aria-hidden', 'true');
     competitionButtons.forEach(button => button.classList.toggle('active', button.dataset.competition === key));
@@ -611,6 +620,7 @@ async function polymarketOdds(data) {
   mode.addEventListener('click', () => {
     comparing = !comparing;
     mode.textContent = comparing ? 'Ver odds da fonte' : 'Comparar com o modelo';
+    sortControl.classList.toggle('visible', comparing);
     kellyControl.classList.toggle('visible', comparing);
     kellyControl.setAttribute('aria-hidden', String(!comparing));
     comparing ? renderComparison() : renderSource();
@@ -618,6 +628,11 @@ async function polymarketOdds(data) {
   kellyButtons.forEach(button => button.addEventListener('click', () => {
     kellyFraction = Number(button.dataset.kelly);
     kellyButtons.forEach(item => item.classList.toggle('active', item === button));
+    if (comparing) renderComparison();
+  }));
+  sortButtons.forEach(button => button.addEventListener('click', () => {
+    comparisonSort = button.dataset.oddsSort;
+    sortButtons.forEach(item => item.classList.toggle('active', item === button));
     if (comparing) renderComparison();
   }));
   competitionButtons.forEach(button => button.addEventListener('click', () => selectCompetition(button.dataset.competition)));
