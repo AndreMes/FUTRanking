@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 
@@ -57,8 +58,6 @@ def keyset_url(filters: list[tuple[str, str]], cursor: str | None = None) -> str
     query: list[tuple[str, str]] = [
         ("limit", "100"),
         ("closed", "false"),
-        ("order", "eventStartTime"),
-        ("ascending", "true"),
     ]
     query.extend(filters)
     if cursor:
@@ -122,8 +121,12 @@ def games_from_events(events: object) -> list[dict[str, object]]:
 
 def request_json(url: str, opener) -> object:
     request = Request(url, headers={"User-Agent": "FUTRanking/1.0", "Accept": "application/json"})
-    with opener(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with opener(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        detail = error.read().decode("utf-8", "replace")[:500]
+        raise RuntimeError(f"HTTP {error.code}: {detail}") from error
 
 
 def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[object], int]:
