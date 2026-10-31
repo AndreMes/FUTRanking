@@ -13,6 +13,7 @@ from dataclasses import dataclass
 class Competition:
     espn_slug: str
     name: str
+    scope: str = "domestic"
 
 
 ESPN_COMPETITIONS = (
@@ -28,8 +29,9 @@ ESPN_COMPETITIONS = (
     Competition("bra.camp.mineiro", "Campeonato Mineiro"),
     Competition("bra.camp.gaucho", "Campeonato Gaúcho"),
     Competition("bra.copa_do_brazil", "Copa do Brasil"),
-    Competition("conmebol.libertadores", "CONMEBOL Libertadores"),
-    Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana"),
+    Competition("conmebol.libertadores", "CONMEBOL Libertadores", "continental"),
+    Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana", "continental"),
+    Competition("FIFA.CWC", "FIFA Club World Cup", "world"),
     Competition("chi.1", "Primera División do Chile"),
     Competition("col.1", "Primera A Colombiana"),
     Competition("ecu.1", "LigaPro Equador"),
@@ -147,9 +149,41 @@ BRAZILIAN_STATE_BY_COMPETITION = {
 }
 
 COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITIONS) | frozenset(GSA_ONLY_COMPETITIONS)
-COMPETITION_CATALOG_VERSION = "|".join(
-    f"{competition.espn_slug}:{competition.name}" for competition in ESPN_COMPETITIONS
+
+# O alcance é uma característica do torneio, não do clube participante. Isto
+# impede, por exemplo, que uma liga nacional pequena seja tratada como jogo
+# continental só porque tem um campeão que também disputa a Libertadores.
+COMPETITION_SCOPE_WEIGHTS = {
+    "domestic": 1.00,
+    "continental": 1.15,
+    "world": 1.25,
+}
+CONTINENTAL_COMPETITION_NAMES = frozenset(
+    competition.name for competition in ESPN_COMPETITIONS if competition.scope == "continental"
+) | frozenset({"CONMEBOL Recopa Sul-Americana"})
+WORLD_COMPETITION_NAMES = frozenset(
+    competition.name for competition in ESPN_COMPETITIONS if competition.scope == "world"
 )
+
+
+def competition_scope(competition: str) -> str:
+    """Classifica o escopo esportivo de uma competição do catálogo."""
+    if competition in WORLD_COMPETITION_NAMES:
+        return "world"
+    if competition in CONTINENTAL_COMPETITION_NAMES:
+        return "continental"
+    return "domestic"
+
+
+def competition_scope_weight(competition: str) -> float:
+    """Retorna o multiplicador de evidência aplicável à competição."""
+    return COMPETITION_SCOPE_WEIGHTS[competition_scope(competition)]
+
+
+COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.15-world-1.25"
+COMPETITION_CATALOG_VERSION = "|".join(
+    f"{competition.espn_slug}:{competition.name}:{competition.scope}" for competition in ESPN_COMPETITIONS
+) + f"|{COMPETITION_SCOPE_VERSION}"
 # Atualiza uma única vez os bancos persistidos que ainda não carregaram a Série B 2026.
 DATA_ENRICHMENT_VERSION = "club-country-venue-v3-serie-b"
 
