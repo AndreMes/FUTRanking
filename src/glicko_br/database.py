@@ -386,7 +386,8 @@ def _home_advantage(match: dict[str, str]) -> float:
     return HOME_ADVANTAGE
 
 
-def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
+def store_match(database: sqlite3.Connection, match: dict[str, str]) -> bool:
+    """Armazena um resultado; retorna falso se a identidade tornou os lados iguais."""
     competition = match["competition"].strip()
     if competition not in COMPETITIONS:
         raise ValueError(f"Competição fora do escopo do MVP: {competition}")
@@ -395,6 +396,16 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(competition)
     home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"), match.get("home_state") or inferred_state)
     away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"), match.get("away_state") or inferred_state)
+    if home == away:
+        # A fonte pode nomear os lados de modo distinto, mas uma regra de
+        # alias pode identificar ambos como o mesmo clube. Nunca registramos
+        # uma auto-partida: além de ser inválida no Glicko, ela sinaliza uma
+        # pendência de identidade auditável no log da execução.
+        print(
+            f"[identidade] resultado ignorado: {match['external_id']} "
+            f"({match['home_team']} × {match['away_team']}) foi conciliado para o mesmo clube."
+        )
+        return False
     matchday = int(match["matchday"]) if match.get("matchday") else None
     home_advantage = _home_advantage(match)
     neutral_site = int(home_advantage == 0)
@@ -404,7 +415,7 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
         (match["external_id"],),
     ).fetchone()
     if previous and tuple(previous) == values:
-        return
+        return True
     database.execute(
         """INSERT INTO matches(external_id, played_at, competition, matchday, neutral_site, home_advantage, venue_country, stage, group_name, home_club_id, away_club_id, home_goals, away_goals)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -417,6 +428,7 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> None:
     database.execute("DELETE FROM fixtures WHERE external_id=?", (match["external_id"],))
     # Jogo novo ou corrigido precisa ser processado; jogos idênticos não voltam à fila.
     database.execute("DELETE FROM processed_matches WHERE external_id=?", (match["external_id"],))
+    return True
 
 
 def store_source_payload(database: sqlite3.Connection, source: str, request_path: str, payload: str) -> None:
@@ -433,6 +445,12 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
         inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(fixture["competition"])
         home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"), fixture.get("home_state") or inferred_state)
         away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"), fixture.get("away_state") or inferred_state)
+        if home == away:
+            print(
+                f"[identidade] fixture ignorado: {fixture['external_id']} "
+                f"({fixture['home_team']} × {fixture['away_team']}) foi conciliado para o mesmo clube."
+            )
+            continue
         home_advantage = _home_advantage(fixture)
         neutral_site = int(home_advantage == 0)
         database.execute(
