@@ -132,7 +132,13 @@ def _venue_country(event: dict) -> str:
 def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
     """Normaliza somente eventos com placar final confirmado pela fonte."""
     status = ((event.get("status") or {}).get("type") or {})
-    home, away = _competitors(event)
+    try:
+        home, away = _competitors(event)
+    except EspnError:
+        # Algumas páginas históricas (sobretudo torneios de formato alterado)
+        # trazem cards vazios ou placeholders de chave. Não são partidas e não
+        # devem interromper a carga de resultados válidos da competição.
+        return None
     home_score, away_score = home.get("score"), away.get("score")
     if not status.get("completed") or home_score is None or away_score is None:
         return None
@@ -163,7 +169,10 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
     """Normaliza eventos pendentes, adiados ou em andamento sem transformar finais em fixtures."""
     if event_to_row(event, competition) is not None:
         return None
-    home, away = _competitors(event)
+    try:
+        home, away = _competitors(event)
+    except EspnError:
+        return None
     home_name, home_crest, home_id = _team(home)
     away_name, away_crest, away_id = _team(away)
     matchday, stage, group_name = _context(event)
@@ -270,3 +279,4 @@ def sync_fixture_schedule(database, season: str, *, leagues: dict[str, str] = LE
         replace_fixtures(database, fixtures, replace=False)
         fixtures_found += len(fixtures)
     return fixtures_found
+
