@@ -5,7 +5,7 @@ import argparse
 import json
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.error import HTTPError
@@ -14,7 +14,11 @@ from urllib.request import Request, urlopen
 
 GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
 GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
-MAX_EVENT_PAGES = 5
+# A API limita cada página a 100 eventos. Não podemos parar em uma quantidade
+# arbitrária de páginas: uma série pode manter jogos de diversas rodadas
+# abertos ao mesmo tempo. O teto é apenas um fusível contra cursor defeituoso;
+# se for atingido, o diagnóstico deixa explícito que a coleta é parcial.
+MAX_EVENT_PAGES = 100
 HALFTIME_PATTERN = re.compile(r"\b(?:half[ -]?time|half[ -]?time result|first half|second half|1st half|2nd half|primeiro tempo|segundo tempo|intervalo)\b", re.IGNORECASE)
 DIVISIONS = {
     "serie_a": {"label": "Série A", "codes": {"bra"}, "pattern": re.compile(r"(?:serie|série)\s*a\b|brasileir[aã]o")},
@@ -157,6 +161,8 @@ def keyset_url(filters: list[tuple[str, str]], cursor: str | None = None) -> str
     query: list[tuple[str, str]] = [
         ("limit", "100"),
         ("closed", "false"),
+        ("order", "gameStartTime"),
+        ("ascending", "true"),
     ]
     query.extend(filters)
     if cursor:
@@ -261,11 +267,12 @@ def request_json(url: str, opener) -> object:
         raise RuntimeError(f"HTTP {error.code}: {detail}") from error
 
 
-def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[object], int]:
-    """Segue somente os cursors devolvidos pela API e retorna páginas realmente lidas."""
+def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[object], int, bool]:
+    """Segue todos os cursors da API, sinalizando explicitamente eventual corte."""
     events: list[object] = []
     cursor: str | None = None
     pages = 0
+    seen_cursors: set[str] = set()
     for _ in range(MAX_EVENT_PAGES):
         page = request_json(keyset_url(filters, cursor), opener)
         pages += 1
@@ -273,29 +280,41 @@ def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[obje
             break
         batch = page.get("events")
         if not isinstance(batch, list) or not batch:
-            break
+            return events, pages, True
         events.extend(batch)
         cursor = page.get("next_cursor") if isinstance(page.get("next_cursor"), str) else None
         if not cursor:
-            break
-    return events, pages
+            return events, pages, True
+        if cursor in seen_cursors:
+            raise RuntimeError("a API devolveu um cursor repetido; coleta interrompida para evitar loop")
+        seen_cursors.add(cursor)
+    return events, pages, False
 
 
-def fetch_division_odds(sports: object, division: str, opener) -> dict[str, object]:
+def fetch_division_odds(sports: object, division: str, opener, now: datetime | None = None) -> dict[str, object]:
     """Coleta uma divisão brasileira e conserva diagnóstico por fonte."""
     metadata = serie_metadata(sports, division)
     series_ids = series_ids_for_sport(sports, division)
     label = DIVISIONS[division]["label"]
     if not series_ids:
         raise RuntimeError(f"o catálogo não identificou {label} brasileira por série")
-    events, pages = fetch_event_pages([("series_id", identifier) for identifier in series_ids], opener)
+    # Inclui partidas em andamento e todas as futuras. A pequena margem evita
+    # descartar um jogo recém-iniciado cujo mercado ainda esteja aberto.
+    reference_time = (now or datetime.now(timezone.utc)).astimezone(timezone.utc) - timedelta(hours=8)
+    time_filter = ("start_time_min", reference_time.isoformat().replace("+00:00", "Z"))
+    events, pages, complete = fetch_event_pages(
+        [("series_id", identifier) for identifier in series_ids] + [time_filter], opener
+    )
     games = games_from_events(events, price_for_market=gamma_best_ask_price)
     # A documentação expõe a tag primária da liga. Se a série ainda não tiver
     # eventos abertos, tentamos a própria tag sem misturar campeonatos.
     fallback_used = False
     if not games and metadata and str(metadata.get("primaryTagId") or "").isdigit():
-        events, tag_pages = fetch_event_pages([("tag_id", str(metadata["primaryTagId"]))], opener)
+        events, tag_pages, tag_complete = fetch_event_pages(
+            [("tag_id", str(metadata["primaryTagId"])), time_filter], opener
+        )
         pages += tag_pages
+        complete = complete and tag_complete
         games = games_from_events(events, price_for_market=gamma_best_ask_price)
         fallback_used = True
     return {
@@ -307,10 +326,11 @@ def fetch_division_odds(sports: object, division: str, opener) -> dict[str, obje
             "primary_tag_id": metadata.get("primaryTagId") if metadata else None,
             "pages": pages,
             "events": len(events),
+            "complete": complete,
             "tag_fallback": fallback_used,
             "price_source": "Gamma API · bestAsk (preço Buy exibido pelo Polymarket)",
         },
-        "error": None if games else f"A API respondeu, mas não retornou mercados 1X2 ativos para a {label}.",
+        "error": (None if complete else f"A coleta atingiu o limite de {MAX_EVENT_PAGES} páginas antes do fim; os dados podem estar parciais.") or (None if games else f"A API respondeu, mas não retornou mercados 1X2 ativos para a {label}."),
     }
 
 
