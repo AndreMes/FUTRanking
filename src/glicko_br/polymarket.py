@@ -15,6 +15,10 @@ GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
 GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
 MAX_EVENT_PAGES = 5
 HALFTIME_PATTERN = re.compile(r"\b(?:half[ -]?time|half[ -]?time result|first half|second half|1st half|2nd half|primeiro tempo|segundo tempo|intervalo)\b", re.IGNORECASE)
+DIVISIONS = {
+    "serie_a": {"label": "Série A", "codes": {"bra"}, "pattern": re.compile(r"(?:serie|série)\s*a\b|brasileir[aã]o")},
+    "serie_b": {"label": "Série B", "codes": {"brb", "bra2"}, "pattern": re.compile(r"(?:serie|série)\s*b\b|brasileir[aã]o.*\bb\b")},
+}
 
 
 def parsed_list(value: object) -> list[object]:
@@ -29,24 +33,30 @@ def parsed_list(value: object) -> list[object]:
     return []
 
 
-def serie_a_metadata(sports: object) -> dict[str, object] | None:
-    """Encontra a liga por seus metadados oficiais, não pela rota visual do site."""
+def serie_metadata(sports: object, division: str) -> dict[str, object] | None:
+    """Encontra cada divisão por metadados da API, sem depender da rota visual."""
     if not isinstance(sports, list):
         return None
+    config = DIVISIONS[division]
     entries = [entry for entry in sports if isinstance(entry, dict)]
-    exact = next((entry for entry in entries if str(entry.get("sport") or "").lower() == "bra"), None)
+    exact = next((entry for entry in entries if str(entry.get("sport") or "").lower() in config["codes"]), None)
     if exact:
         return exact
     # O identificador pode mudar; nome e fonte de resolução são estáveis no catálogo.
     def score(entry: dict[str, object]) -> int:
         text = " ".join(str(entry.get(field) or "") for field in ("sport", "name", "resolution")).lower()
-        return int("brasil" in text or "brazil" in text) + int("serie a" in text or "brasileirao" in text or "brasileiro" in text)
+        return int("brasil" in text or "brazil" in text) + int(bool(config["pattern"].search(text)))
     return max(entries, key=score, default=None) if any(score(entry) >= 2 for entry in entries) else None
 
 
-def series_ids_for_sport(sports: object) -> list[str]:
+def serie_a_metadata(sports: object) -> dict[str, object] | None:
+    """Compatibilidade para os consumidores da Série A."""
+    return serie_metadata(sports, "serie_a")
+
+
+def series_ids_for_sport(sports: object, division: str = "serie_a") -> list[str]:
     """Obtém os identificadores de série publicados no catálogo oficial."""
-    item = serie_a_metadata(sports)
+    item = serie_metadata(sports, division)
     if item is None:
         return []
     raw = item.get("series")
@@ -163,13 +173,13 @@ def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[obje
     return events, pages
 
 
-def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
-    """Consulta somente a API: catálogo de esportes e eventos keyset da Série A."""
-    sports = request_json(GAMMA_SPORTS_URL, opener)
-    metadata = serie_a_metadata(sports)
-    series_ids = series_ids_for_sport(sports)
+def fetch_division_odds(sports: object, division: str, opener) -> dict[str, object]:
+    """Coleta uma divisão brasileira e conserva diagnóstico por fonte."""
+    metadata = serie_metadata(sports, division)
+    series_ids = series_ids_for_sport(sports, division)
+    label = DIVISIONS[division]["label"]
     if not series_ids:
-        raise RuntimeError("o catálogo não identificou a Série A brasileira por série")
+        raise RuntimeError(f"o catálogo não identificou {label} brasileira por série")
     events, pages = fetch_event_pages([("series_id", identifier) for identifier in series_ids], opener)
     games = games_from_events(events)
     # A documentação expõe a tag primária da liga. Se a série ainda não tiver
@@ -181,9 +191,7 @@ def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
         games = games_from_events(events)
         fallback_used = True
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_url": GAMMA_EVENTS_KEYSET_URL,
-        "source": "Polymarket Gamma API · events/keyset",
+        "label": label,
         "games": games,
         "diagnostics": {
             "sport": metadata.get("sport") if metadata else None,
@@ -193,7 +201,29 @@ def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
             "events": len(events),
             "tag_fallback": fallback_used,
         },
-        "error": None if games else "A API respondeu, mas não retornou mercados 1X2 ativos para a Série A.",
+        "error": None if games else f"A API respondeu, mas não retornou mercados 1X2 ativos para a {label}.",
+    }
+
+
+def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
+    """Consulta A e B pela API e publica uma coleção independente por divisão."""
+    sports = request_json(GAMMA_SPORTS_URL, opener)
+    competitions: dict[str, dict[str, object]] = {}
+    for division in DIVISIONS:
+        try:
+            competitions[division] = fetch_division_odds(sports, division, opener)
+        except Exception as exc:
+            competitions[division] = {"label": DIVISIONS[division]["label"], "games": [], "diagnostics": {}, "error": f"Falha ao consultar a API: {exc}"}
+    serie_a = competitions["serie_a"]
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "source_url": GAMMA_EVENTS_KEYSET_URL,
+        "source": "Polymarket Gamma API · events/keyset",
+        "competitions": competitions,
+        # Compatibilidade com a página já publicada até ela ler competitions.
+        "games": serie_a["games"],
+        "diagnostics": serie_a["diagnostics"],
+        "error": serie_a["error"],
     }
 
 
@@ -213,9 +243,10 @@ def main() -> None:
         }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[polymarket][api] Série A: {len(payload['games'])} jogos 1X2 exportados.")
-    if payload["error"]:
-        print(f"[polymarket][api] {payload['error']}")
+    for division, competition in payload.get("competitions", {}).items():
+        print(f"[polymarket][api] {competition['label']}: {len(competition['games'])} jogos 1X2 exportados.")
+        if competition["error"]:
+            print(f"[polymarket][api] {division}: {competition['error']}")
 
 
 if __name__ == "__main__":
