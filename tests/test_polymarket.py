@@ -1,4 +1,4 @@
-from glicko_br.polymarket import event_odds, games_from_events, gamma_yes_price, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport, yes_token_id
+from glicko_br.polymarket import event_odds, games_from_events, gamma_best_ask_price, gamma_yes_price, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport, yes_token_id
 
 
 def test_series_ids_for_brazilian_sport_come_from_metadata():
@@ -82,6 +82,10 @@ def test_yes_price_and_token_follow_the_yes_outcome_not_a_fixed_index():
     }
     assert yes_token_id(market) == "yes-token"
     assert gamma_yes_price(market) == 0.62
+
+
+def test_best_ask_is_the_price_used_for_the_public_buy_quote():
+    assert gamma_best_ask_price({"bestAsk": "0.94", "outcomePrices": '["0.30", "0.70"]'}) == 0.94
 
 
 def test_games_from_events_excludes_halftime_and_non_competitive_triplets():
