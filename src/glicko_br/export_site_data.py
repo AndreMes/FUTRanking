@@ -12,7 +12,7 @@ from .database import HOME_ADVANTAGE
 from .simulation import outcome_probabilities, simulate_season
 from .neutral_sites import is_neutral_event
 from .club_metadata import COUNTRY_OVERRIDES
-from .competitions import DOMESTIC_COMPETITION_COUNTRIES
+from .competitions import DOMESTIC_COMPETITION_COUNTRIES, competition_scope
 from .competitions import ESPN_COMPETITIONS
 from .model_selection import EVALUATION_VERSION
 from .crest_colors import backfill_fixture_colors
@@ -451,6 +451,7 @@ def main() -> None:
     health = exported_data_health(database)
     for row in health:
         row["sources"] = data_sources_for(str(row["competition"]))
+        row["scope"] = competition_scope(str(row["competition"]))
     payload = {
         "competition": "Campeonato Brasileiro Série A",
         "period_date": ranking[0]["period_date"],
@@ -475,3 +476,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
