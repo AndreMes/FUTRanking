@@ -12,7 +12,6 @@ from urllib.request import Request, urlopen
 
 GAMMA_SPORTS_URL = "https://gamma-api.polymarket.com/sports"
 GAMMA_EVENTS_KEYSET_URL = "https://gamma-api.polymarket.com/events/keyset"
-SERIE_A_SPORT = "bra"
 MAX_EVENT_PAGES = 5
 
 
@@ -28,19 +27,32 @@ def parsed_list(value: object) -> list[object]:
     return []
 
 
-def series_ids_for_sport(sports: object, sport: str = SERIE_A_SPORT) -> list[str]:
-    """Obtém os identificadores de série publicados no catálogo oficial."""
+def serie_a_metadata(sports: object) -> dict[str, object] | None:
+    """Encontra a liga por seus metadados oficiais, não pela rota visual do site."""
     if not isinstance(sports, list):
-        return []
-    item = next((entry for entry in sports if isinstance(entry, dict) and str(entry.get("sport") or "").lower() == sport.lower()), None)
-    if not item:
+        return None
+    entries = [entry for entry in sports if isinstance(entry, dict)]
+    exact = next((entry for entry in entries if str(entry.get("sport") or "").lower() == "bra"), None)
+    if exact:
+        return exact
+    # O identificador pode mudar; nome e fonte de resolução são estáveis no catálogo.
+    def score(entry: dict[str, object]) -> int:
+        text = " ".join(str(entry.get(field) or "") for field in ("sport", "name", "resolution")).lower()
+        return int("brasil" in text or "brazil" in text) + int("serie a" in text or "brasileirao" in text or "brasileiro" in text)
+    return max(entries, key=score, default=None) if any(score(entry) >= 2 for entry in entries) else None
+
+
+def series_ids_for_sport(sports: object) -> list[str]:
+    """Obtém os identificadores de série publicados no catálogo oficial."""
+    item = serie_a_metadata(sports)
+    if item is None:
         return []
     raw = item.get("series")
     values = raw if isinstance(raw, list) else str(raw or "").split(",")
     return [str(value).strip() for value in values if str(value).strip().isdigit()]
 
 
-def keyset_url(series_ids: list[str], cursor: str | None = None) -> str:
+def keyset_url(filters: list[tuple[str, str]], cursor: str | None = None) -> str:
     """Cria uma consulta paginada, sem offset, filtrada pela série brasileira."""
     query: list[tuple[str, str]] = [
         ("limit", "100"),
@@ -48,7 +60,7 @@ def keyset_url(series_ids: list[str], cursor: str | None = None) -> str:
         ("order", "eventStartTime"),
         ("ascending", "true"),
     ]
-    query.extend(("series_id", identifier) for identifier in series_ids)
+    query.extend(filters)
     if cursor:
         query.append(("after_cursor", cursor))
     return f"{GAMMA_EVENTS_KEYSET_URL}?{urlencode(query)}"
@@ -114,15 +126,14 @@ def request_json(url: str, opener) -> object:
         return json.loads(response.read().decode("utf-8"))
 
 
-def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
-    """Consulta somente a API: catálogo de esportes e eventos keyset da Série A."""
-    series_ids = series_ids_for_sport(request_json(GAMMA_SPORTS_URL, opener))
-    if not series_ids:
-        raise RuntimeError("a API não informou a série associada ao esporte 'bra'")
+def fetch_event_pages(filters: list[tuple[str, str]], opener) -> tuple[list[object], int]:
+    """Segue somente os cursors devolvidos pela API e retorna páginas realmente lidas."""
     events: list[object] = []
     cursor: str | None = None
+    pages = 0
     for _ in range(MAX_EVENT_PAGES):
-        page = request_json(keyset_url(series_ids, cursor), opener)
+        page = request_json(keyset_url(filters, cursor), opener)
+        pages += 1
         if not isinstance(page, dict):
             break
         batch = page.get("events")
@@ -132,12 +143,39 @@ def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
         cursor = page.get("next_cursor") if isinstance(page.get("next_cursor"), str) else None
         if not cursor:
             break
+    return events, pages
+
+
+def fetch_brazil_serie_a_odds(opener=urlopen) -> dict[str, object]:
+    """Consulta somente a API: catálogo de esportes e eventos keyset da Série A."""
+    sports = request_json(GAMMA_SPORTS_URL, opener)
+    metadata = serie_a_metadata(sports)
+    series_ids = series_ids_for_sport(sports)
+    if not series_ids:
+        raise RuntimeError("o catálogo não identificou a Série A brasileira por série")
+    events, pages = fetch_event_pages([("series_id", identifier) for identifier in series_ids], opener)
     games = games_from_events(events)
+    # A documentação expõe a tag primária da liga. Se a série ainda não tiver
+    # eventos abertos, tentamos a própria tag sem misturar campeonatos.
+    fallback_used = False
+    if not games and metadata and str(metadata.get("primaryTagId") or "").isdigit():
+        events, tag_pages = fetch_event_pages([("tag_id", str(metadata["primaryTagId"]))], opener)
+        pages += tag_pages
+        games = games_from_events(events)
+        fallback_used = True
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_url": GAMMA_EVENTS_KEYSET_URL,
         "source": "Polymarket Gamma API · events/keyset",
         "games": games,
+        "diagnostics": {
+            "sport": metadata.get("sport") if metadata else None,
+            "series_ids": series_ids,
+            "primary_tag_id": metadata.get("primaryTagId") if metadata else None,
+            "pages": pages,
+            "events": len(events),
+            "tag_fallback": fallback_used,
+        },
         "error": None if games else "A API respondeu, mas não retornou mercados 1X2 ativos para a Série A.",
     }
 
