@@ -57,7 +57,7 @@ const oddsTeamsStyle = document.createElement('style');
 oddsTeamsStyle.textContent = '.odds-teams{display:flex;align-items:center;gap:8px;font-weight:850}.odds-teams .crest{width:27px;height:27px;object-fit:contain}.odds-vs{color:#5b6f68;font-size:.75rem;font-weight:800}';
 document.head.append(oddsTeamsStyle);
 const oddsLayoutStyle = document.createElement('style');
-oddsLayoutStyle.textContent = '.odds-panel .brazil-odds-row{grid-template-columns:minmax(300px,420px) repeat(3,120px);justify-content:center;gap:28px}.odds-panel .kelly-row{grid-template-columns:minmax(250px,360px) 145px 86px 100px 90px 76px;justify-content:center;gap:18px}.odds-panel .brazil-odds-row>span:not(:first-child),.odds-panel .brazil-odds-row>strong,.odds-panel .kelly-row>span:not(:first-child),.odds-panel .kelly-row>strong{text-align:center!important}.kelly-control{display:none;gap:5px;padding:4px;border:1px solid #d8d0c1;border-radius:10px;background:#fffdf8}.kelly-control.visible{display:flex}.kelly-control button{border:0;border-radius:6px;background:transparent;color:#34473f;padding:7px 9px;font:inherit;font-size:.76rem;font-weight:850;cursor:pointer}.kelly-control button.active{background:#075c42;color:#fff}@media(max-width:700px){.odds-panel .brazil-odds-row{grid-template-columns:260px repeat(3,125px);justify-content:start;gap:14px}.odds-panel .kelly-row{grid-template-columns:245px 115px 82px 96px 80px 92px;justify-content:start;gap:14px}.kelly-control.visible{width:100%;justify-content:space-between}.kelly-control button{flex:1}}';
+oddsLayoutStyle.textContent = '.odds-competition-tabs{display:flex;gap:8px;margin:20px 0 2px}.odds-competition-tabs button{border:1px solid #d8d0c1;border-radius:999px;background:#fffdf8;color:#10231d;padding:8px 13px;font:inherit;font-size:.85rem;font-weight:850;cursor:pointer}.odds-competition-tabs button.active{background:#075c42;border-color:#075c42;color:#fff}.odds-panel .brazil-odds-row{grid-template-columns:minmax(300px,420px) repeat(3,120px);justify-content:center;gap:28px}.odds-panel .kelly-row{grid-template-columns:minmax(250px,360px) 145px 86px 100px 90px 76px;justify-content:center;gap:18px}.odds-panel .brazil-odds-row>span:not(:first-child),.odds-panel .brazil-odds-row>strong,.odds-panel .kelly-row>span:not(:first-child),.odds-panel .kelly-row>strong{text-align:center!important}.kelly-control{display:none;gap:5px;padding:4px;border:1px solid #d8d0c1;border-radius:10px;background:#fffdf8}.kelly-control.visible{display:flex}.kelly-control button{border:0;border-radius:6px;background:transparent;color:#34473f;padding:7px 9px;font:inherit;font-size:.76rem;font-weight:850;cursor:pointer}.kelly-control button.active{background:#075c42;color:#fff}@media(max-width:700px){.odds-competition-tabs{margin-top:16px}.odds-panel .brazil-odds-row{grid-template-columns:260px repeat(3,125px);justify-content:start;gap:14px}.odds-panel .kelly-row{grid-template-columns:245px 115px 82px 96px 80px 92px;justify-content:start;gap:14px}.kelly-control.visible{width:100%;justify-content:space-between}.kelly-control button{flex:1}}';
 document.head.append(oddsLayoutStyle);
 const oddsComparisonStyle = document.createElement('style');
 oddsComparisonStyle.textContent = '.odds-mode{border:1px solid #075c42;border-radius:9px;background:#075c42;color:#fff;padding:10px 13px;font:inherit;font-size:.84rem;font-weight:850;cursor:pointer}.odds-mode:hover{background:#064b36}.odds-mode:disabled{opacity:.55;cursor:wait}.kelly-row{grid-template-columns:minmax(190px,1.35fr) minmax(105px,.75fr) 82px 96px 80px 92px}.odds-alpha.negative{color:#a13d34}.odds-alpha.positive{color:#075c42}.odds-kelly{text-align:right;font-variant-numeric:tabular-nums;color:#075c42}.odds-mode-note{margin-top:7px;color:#5b6f68;font-size:.78rem}@media(max-width:700px){.odds-mode{width:100%}.odds-row.kelly-row{min-width:760px!important;grid-template-columns:245px 115px 82px 96px 80px 92px!important}}';
@@ -507,9 +507,9 @@ function brazilSerieASeries(sports) {
 }
 
 async function polymarketOdds(data) {
-  document.body.innerHTML = shell('Odds da Série A', 'Teste de fonte');
-  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente do Campeonato Brasileiro, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados da Série A…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow na API oficial do Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
-  const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')];
+  document.body.innerHTML = shell('Odds do Brasileirão', 'Teste de fonte');
+  el('#content').innerHTML = `<p class="odds-intro">Odds 1X2 da rodada vigente das Séries A e B, publicadas pelo Polymarket. Use a comparação para confrontar cada probabilidade com os fixtures do FUTRanking e ver o alfa em pontos percentuais.</p><div class="odds-competition-tabs" role="tablist"><button type="button" data-competition="serie_a" class="active">Série A</button><button type="button" data-competition="serie_b">Série B</button></div><div class="odds-toolbar"><span class="odds-status">Carregando a última coleta publicada…</span><button class="odds-mode" type="button" disabled>Comparar com o modelo</button><div class="kelly-control" aria-label="Fração do critério de Kelly"><button type="button" data-kelly="1" class="active">Kelly</button><button type="button" data-kelly="0.5">Kelly/2</button><button type="button" data-kelly="0.25">Kelly/4</button></div></div><section class="panel odds-panel"><div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><p class="empty-list">Carregando mercados…</p></section><aside class="odds-note"><strong>Fonte pública, coleta publicada.</strong> As odds são coletadas pelo workflow na API oficial do Polymarket e servidas pelo próprio FUTRanking. A comparação usa exclusivamente os fixtures já publicados pelo ranking; ela não consulta o Polymarket no navegador.</aside>`;
+  const status = el('.odds-status'), panel = el('.odds-panel'), mode = el('.odds-mode'), kellyControl = el('.kelly-control'), kellyButtons = [...document.querySelectorAll('[data-kelly]')], competitionButtons = [...document.querySelectorAll('[data-competition]')];
   const teamDisplay = name => {
     const known = (data.teams || []).find(team => namesMatch(team.name, name) || namesMatch(name, team.name));
     return `${known?.crest ? `<img class="crest" src="${html(known.crest)}" alt="" loading="lazy">` : ''}<span>${html(name)}</span>`;
@@ -523,7 +523,7 @@ async function polymarketOdds(data) {
       namesMatch(fixture.home_team, home) && namesMatch(fixture.away_team, away)
     ) || null;
   };
-  let games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
+  let competitions = {}, selectedCompetition = 'serie_a', games = [], collectedAt = '', sourceError = '', comparing = false, kellyFraction = 1;
   const renderSource = () => {
     status.textContent = `${games.length} jogo${games.length === 1 ? '' : 's'} com mercado 1X2 · coleta de ${collectedAt}`;
     panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div>${games.map(game => { const [home, away] = splitTeams(game); return `<article class="row brazil-odds-row"><span>${displayGame(home || game.title, away || '')}<small>${html(game.codes?.home || 'casa')} · empate · ${html(game.codes?.away || 'visitante')}</small></span><strong>${(Number(game.home) * 100).toFixed(1)}%</strong><strong>${(Number(game.draw) * 100).toFixed(1)}%</strong><strong>${(Number(game.away) * 100).toFixed(1)}%</strong></article>`; }).join('') || `<div class="odds-warning"><p>${html(sourceError || 'A API não retornou jogos 1X2 nesta coleta.')}</p></div>`}`;
@@ -549,6 +549,18 @@ async function polymarketOdds(data) {
     const kellyLabel = kellyFraction === 1 ? 'Kelly' : kellyFraction === 0.5 ? 'Kelly/2' : 'Kelly/4';
     panel.innerHTML = `<div class="row odds-row kelly-row table-head"><span>Jogo</span><span>Seleção</span><span>Modelo</span><span>Polymarket</span><span>Alfa</span><span>${kellyLabel}</span></div>${comparisons.map(row => `<article class="row odds-row kelly-row"><span class="odds-game">${displayGame(row.fixture.home_team, row.fixture.away_team)}<small>${html(row.fixture.competition || 'Série A')}</small></span><span class="odds-selection">${html(row.selection)}</span><strong class="odds-model">${(row.model * 100).toFixed(1)}%</strong><strong class="odds-market">${(row.market * 100).toFixed(1)}%</strong><strong class="odds-alpha ${row.alpha >= 0 ? 'positive' : 'negative'}">${row.alpha >= 0 ? '+' : ''}${(row.alpha * 100).toFixed(1)} p.p.</strong><strong class="odds-kelly" title="Fração teórica de Kelly, limitada a 0% quando o alfa é negativo">${(row.kelly * kellyFraction * 100).toFixed(1)}%</strong></article>`).join('') || `<div class="odds-warning"><p>Não há fixture publicado que coincida com os ${games.length} jogo${games.length === 1 ? '' : 's'} desta coleta. Quando a agenda correspondente estiver no arquivo do ranking, a comparação aparecerá aqui.</p></div>`}`;
   };
+  const selectCompetition = key => {
+    selectedCompetition = key;
+    const competition = competitions[key] || { games: [], error: 'Esta divisão ainda não possui coleta publicada.' };
+    games = Array.isArray(competition.games) ? competition.games : [];
+    sourceError = competition.error || '';
+    comparing = false;
+    mode.textContent = 'Comparar com o modelo';
+    kellyControl.classList.remove('visible');
+    kellyControl.setAttribute('aria-hidden', 'true');
+    competitionButtons.forEach(button => button.classList.toggle('active', button.dataset.competition === key));
+    renderSource();
+  };
   mode.addEventListener('click', () => {
     comparing = !comparing;
     mode.textContent = comparing ? 'Ver odds da fonte' : 'Comparar com o modelo';
@@ -561,17 +573,17 @@ async function polymarketOdds(data) {
     kellyButtons.forEach(item => item.classList.toggle('active', item === button));
     if (comparing) renderComparison();
   }));
+  competitionButtons.forEach(button => button.addEventListener('click', () => selectCompetition(button.dataset.competition)));
   const load = async () => {
     status.textContent = 'Carregando a última coleta publicada…';
     try {
       const response = await fetch(`./data/polymarket-bra.json?v=${Date.now()}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const payload = await response.json();
-      games = Array.isArray(payload.games) ? payload.games : [];
+      competitions = payload.competitions || { serie_a: { label: 'Série A', games: payload.games || [], error: payload.error || '' }, serie_b: { label: 'Série B', games: [], error: 'A Série B ainda não foi coletada.' } };
       collectedAt = payload.generated_at ? time(payload.generated_at) : 'horário não informado';
-      sourceError = payload.error || '';
       mode.disabled = false;
-      renderSource();
+      selectCompetition(selectedCompetition);
     } catch (error) {
       status.textContent = 'Não foi possível carregar a coleta publicada.';
       panel.innerHTML = `<div class="row brazil-odds-row table-head"><span>Jogo</span><span>Vitória casa</span><span>Empate</span><span>Vitória visitante</span></div><div class="odds-warning"><p>Consulta de teste indisponível: ${html(String(error?.message || 'erro de rede'))}.</p></div>`;
