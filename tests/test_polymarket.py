@@ -62,6 +62,18 @@ def test_event_odds_uses_moneyline_contract_suffixes():
     assert event_odds(event, markets)["codes"] == {"home": "COR1", "away": "MIR"}
 
 
+def test_event_odds_maps_market_codes_to_teams_instead_of_api_order():
+    event = {"slug": "brb-goi-pop", "title": "Goiás vs. Ponte Preta"}
+    markets = [
+        {"slug": "brb-goi-pop-pop", "title": "POP", "outcomePrices": '["0.30", "0.70"]'},
+        {"slug": "brb-goi-pop-draw", "title": "DRAW", "outcomePrices": '["0.41", "0.59"]'},
+        {"slug": "brb-goi-pop-goi", "title": "GOI", "outcomePrices": '["0.94", "0.06"]'},
+    ]
+    game = event_odds(event, markets)
+    assert game["home"] == 0.94
+    assert game["away"] == 0.30
+
+
 def test_yes_price_and_token_follow_the_yes_outcome_not_a_fixed_index():
     market = {
         "outcomes": '["No", "Yes"]',
