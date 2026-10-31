@@ -1,4 +1,4 @@
-from glicko_br.polymarket import event_odds, games_from_events, keyset_url, series_ids_for_sport
+from glicko_br.polymarket import event_odds, games_from_events, keyset_url, serie_a_metadata, series_ids_for_sport
 
 
 def test_series_ids_for_brazilian_sport_come_from_metadata():
@@ -6,8 +6,14 @@ def test_series_ids_for_brazilian_sport_come_from_metadata():
     assert series_ids_for_sport(sports) == ["101", "102"]
 
 
+def test_metadata_falls_back_to_the_league_name_when_the_visual_route_is_not_an_id():
+    sports = [{"sport": "br1", "name": "Brazilian Serie A", "series": "201", "primaryTagId": 999}]
+    assert serie_a_metadata(sports) == sports[0]
+    assert series_ids_for_sport(sports) == ["201"]
+
+
 def test_keyset_url_uses_cursor_not_offset():
-    url = keyset_url(["101", "102"], "next-page-token")
+    url = keyset_url([("series_id", "101"), ("series_id", "102")], "next-page-token")
     assert "events/keyset?" in url
     assert "series_id=101" in url and "series_id=102" in url
     assert "after_cursor=next-page-token" in url
