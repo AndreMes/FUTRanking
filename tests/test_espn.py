@@ -82,3 +82,18 @@ def test_espn_fixture_schedule_keeps_only_pending_events():
     fixtures = exported_fixtures(database, [])
     assert len(fixtures) == 1
     assert fixtures[0]["external_id"] == "espn:future"
+
+
+def test_espn_ignores_placeholder_events_without_participants():
+    database = connect(":memory:")
+    initialise(database)
+    payload = {"events": [event("valid"), {"id": "placeholder", "date": "2026-10-25T19:30Z", "status": {"type": {"completed": False}}}]}
+
+    class Client:
+        def get_scoreboard(self, league, *, dates):
+            return payload, "{}", f"/{league}/scoreboard"
+
+    assert sync_period(database, "2026", leagues={"FIFA.CWC": "FIFA Club World Cup"}, client=Client()) == 1
+    assert [row["external_id"] for row in exported_matches(database)] == ["espn:valid"]
+    assert sync_fixture_schedule(database, "2026", leagues={"FIFA.CWC": "FIFA Club World Cup"}, client=Client()) == 0
+
