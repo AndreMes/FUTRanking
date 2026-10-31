@@ -161,8 +161,6 @@ def keyset_url(filters: list[tuple[str, str]], cursor: str | None = None) -> str
     query: list[tuple[str, str]] = [
         ("limit", "100"),
         ("closed", "false"),
-        ("order", "gameStartTime"),
-        ("ascending", "true"),
     ]
     query.extend(filters)
     if cursor:
