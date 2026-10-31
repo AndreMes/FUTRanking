@@ -1,4 +1,6 @@
-from glicko_br.polymarket import event_odds, games_from_events, gamma_best_ask_price, gamma_yes_price, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport, yes_token_id
+import json
+
+from glicko_br.polymarket import event_odds, fetch_event_pages, games_from_events, gamma_best_ask_price, gamma_yes_price, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport, yes_token_id
 
 
 def test_series_ids_for_brazilian_sport_come_from_metadata():
@@ -26,7 +28,41 @@ def test_keyset_url_uses_cursor_not_offset():
     assert "events/keyset?" in url
     assert "series_id=101" in url and "series_id=102" in url
     assert "after_cursor=next-page-token" in url
+    assert "order=gameStartTime" in url and "ascending=true" in url
     assert "offset" not in url
+
+
+def test_fetch_event_pages_follows_every_cursor_until_the_last_page():
+    payloads = [
+        {"events": [{"slug": "first"}], "next_cursor": "cursor-1"},
+        {"events": [{"slug": "second"}], "next_cursor": "cursor-2"},
+        {"events": [{"slug": "third"}]},
+    ]
+    requested_urls = []
+
+    class Response:
+        def __init__(self, payload):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def read(self):
+            return json.dumps(self.payload).encode("utf-8")
+
+    def opener(request, timeout):
+        requested_urls.append(request.full_url)
+        return Response(payloads[len(requested_urls) - 1])
+
+    events, pages, complete = fetch_event_pages([("series_id", "101")], opener)
+
+    assert [event["slug"] for event in events] == ["first", "second", "third"]
+    assert pages == 3 and complete is True
+    assert "after_cursor=cursor-1" in requested_urls[1]
+    assert "after_cursor=cursor-2" in requested_urls[2]
 
 
 def test_games_from_events_uses_embedded_api_markets():
