@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
@@ -68,6 +69,44 @@ def gamma_yes_price(market: dict[str, object]) -> float | None:
     return price if 0 < price < 1 else None
 
 
+def normalized_text(value: object) -> str:
+    """Normaliza nomes e códigos sem transformar ordem de mercados em identidade."""
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
+def split_event_teams(title: str) -> tuple[str, str] | None:
+    parts = re.split(r"\s+vs\.?\s+", title, maxsplit=1, flags=re.IGNORECASE)
+    if len(parts) != 2 or not all(part.strip() for part in parts):
+        return None
+    return parts[0].strip(), parts[1].strip()
+
+
+def team_code_candidates(team: str) -> set[str]:
+    """Códigos curtos comuns em mercados esportivos, apenas como último recurso."""
+    words = [word for word in normalized_text(team).split() if word not in {"fc", "ec", "sc", "ac", "clube", "futebol"}]
+    if not words:
+        return set()
+    compact = "".join(words)
+    candidates = {compact[:3], "".join(word[0] for word in words)}
+    if len(words) > 1:
+        candidates.add(words[0][:2] + "".join(word[0] for word in words[1:]))
+    return {candidate for candidate in candidates if len(candidate) >= 2}
+
+
+def market_matches_team(market: dict[str, object], suffix: str, team: str) -> bool:
+    """Exige evidência de que o contrato pertence ao mandante ou visitante."""
+    text = normalized_text(" ".join(str(market.get(field) or "") for field in ("title", "question", "groupItemTitle", "description")))
+    team_text = normalized_text(team)
+    if len(team_text) >= 4 and team_text in text:
+        return True
+    words = [word for word in team_text.split() if len(word) >= 4 and word not in {"clube", "futebol"}]
+    if words and all(word in text.split() for word in words):
+        return True
+    code = re.sub(r"\d+$", "", normalized_text(suffix).replace(" ", ""))
+    return code in team_code_candidates(team)
+
+
 def serie_metadata(sports: object, division: str) -> dict[str, object] | None:
     """Encontra cada divisão por metadados da API, sem depender da rota visual."""
     if not isinstance(sports, list):
@@ -124,6 +163,10 @@ def event_odds(
     title = str(event.get("title") or "").strip()
     if HALFTIME_PATTERN.search(title):
         return None
+    teams = split_event_teams(title)
+    if teams is None:
+        return None
+    home_team, away_team = teams
     prefix = f"{event_slug}-"
     legs: dict[str, tuple[str, float]] = {}
     for market in markets:
@@ -141,20 +184,31 @@ def event_odds(
         price = price_for_market(market) if price_for_market else gamma_yes_price(market)
         if price is None:
             continue
-        legs[suffix] = (str(market.get("title") or suffix).upper(), price)
-    draw_key = next((key for key in legs if key == "draw"), None)
-    sides = [(key, value) for key, value in legs.items() if key != draw_key]
-    if draw_key is None or len(sides) != 2 or not re.search(r"\s+vs\.?\s+", title, re.IGNORECASE):
+        code = str(market.get("title") or suffix).upper()
+        if suffix == "draw":
+            key = "draw"
+        elif market_matches_team(market, suffix, home_team):
+            key = "home"
+        elif market_matches_team(market, suffix, away_team):
+            key = "away"
+        else:
+            # É preferível omitir um jogo a comparar uma equipa ao contrato errado.
+            continue
+        if key in legs:
+            return None
+        legs[key] = (code, price)
+    if set(legs) != {"home", "draw", "away"}:
         return None
-    (_, (home_code, home)), (_, (away_code, away)) = sides
+    home_code, home = legs["home"]
+    away_code, away = legs["away"]
     # Um 1X2 de partida inteira tem três probabilidades competitivas. Um preço
     # praticamente resolvido sinaliza mercado de período/estado indevidamente aninhado.
-    if max(home, legs[draw_key][1], away) >= 0.95:
+    if max(home, legs["draw"][1], away) >= 0.95:
         return None
     return {
         "title": title,
         "home": home,
-        "draw": legs[draw_key][1],
+        "draw": legs["draw"][1],
         "away": away,
         "codes": {"home": home_code, "away": away_code},
         "scheduled_at": event.get("gameStartTime") or event.get("eventStartTime") or event.get("startDate"),
