@@ -1,4 +1,4 @@
-from glicko_br.polymarket import event_odds, games_from_events, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport
+from glicko_br.polymarket import event_odds, games_from_events, gamma_yes_price, keyset_url, serie_a_metadata, serie_metadata, series_ids_for_sport, yes_token_id
 
 
 def test_series_ids_for_brazilian_sport_come_from_metadata():
@@ -60,6 +60,16 @@ def test_event_odds_uses_moneyline_contract_suffixes():
         {"slug": "bra-cor1-mir-2026-10-30-total-2pt5", "title": "O 2.5", "outcomePrices": '["0.49", "0.51"]'},
     ]
     assert event_odds(event, markets)["codes"] == {"home": "COR1", "away": "MIR"}
+
+
+def test_yes_price_and_token_follow_the_yes_outcome_not_a_fixed_index():
+    market = {
+        "outcomes": '["No", "Yes"]',
+        "outcomePrices": '["0.38", "0.62"]',
+        "clobTokenIds": '["no-token", "yes-token"]',
+    }
+    assert yes_token_id(market) == "yes-token"
+    assert gamma_yes_price(market) == 0.62
 
 
 def test_games_from_events_excludes_halftime_and_non_competitive_triplets():
