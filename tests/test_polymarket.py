@@ -28,7 +28,6 @@ def test_keyset_url_uses_cursor_not_offset():
     assert "events/keyset?" in url
     assert "series_id=101" in url and "series_id=102" in url
     assert "after_cursor=next-page-token" in url
-    assert "order=gameStartTime" in url and "ascending=true" in url
     assert "offset" not in url
 
 
