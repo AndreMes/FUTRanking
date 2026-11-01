@@ -52,6 +52,13 @@ ESPN_COMPETITIONS = (
     Competition("por.1", "Primeira Liga"),
     Competition("ned.1", "Eredivisie"),
     Competition("bel.1", "Belgian Pro League"),
+    Competition("tur.1", "Turkish Super Lig"),
+    Competition("sco.1", "Scottish Premiership"),
+    Competition("sui.1", "Swiss Super League"),
+    Competition("aut.1", "Austrian Bundesliga"),
+    Competition("den.1", "Danish Superliga"),
+    Competition("gre.1", "Greek Super League"),
+    Competition("cze.1", "Czech First League"),
     Competition("uefa.champions", "UEFA Champions League", "continental"),
     Competition("uefa.europa", "UEFA Europa League", "continental"),
     Competition("uefa.europa.conf", "UEFA Conference League", "continental", 2021),
@@ -161,6 +168,13 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Primeira Liga": "Portugal",
     "Eredivisie": "Holanda",
     "Belgian Pro League": "Bélgica",
+    "Turkish Super Lig": "Turquia",
+    "Scottish Premiership": "Escócia",
+    "Swiss Super League": "Suíça",
+    "Austrian Bundesliga": "Áustria",
+    "Danish Superliga": "Dinamarca",
+    "Greek Super League": "Grécia",
+    "Czech First League": "Tchéquia",
 }
 
 # Os estaduais não são apenas competições: eles também fornecem uma evidência
