@@ -22,6 +22,19 @@ def test_known_provider_aliases_share_one_club_identity():
     assert database.execute("SELECT COUNT(DISTINCT home_club_id) FROM matches WHERE external_id IN ('one', 'two')").fetchone()[0] == 1
 
 
+def test_equal_display_names_in_different_countries_remain_distinct():
+    database = connect(":memory:")
+    initialise(database)
+    english = match("eng", "United", "City")
+    english["home_country"] = english["away_country"] = "Inglaterra"
+    brazilian = match("bra", "United", "Rovers")
+    store_match(database, english)
+    store_match(database, brazilian)
+    clubs = database.execute("SELECT name, country, identity_key FROM clubs WHERE name='United' ORDER BY country").fetchall()
+    assert len(clubs) == 2
+    assert {row["identity_key"] for row in clubs} == {"BR:united", "EN:united"}
+
+
 def test_ambiguous_names_are_not_merged_by_text_similarity():
     database = connect(":memory:")
     initialise(database)
