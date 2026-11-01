@@ -1,5 +1,5 @@
 from glicko_br.club_identity import canonical_name, must_remain_separate
-from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, reconcile_provider_identities, store_match
+from glicko_br.database import connect, identity_candidates, initialise, reconcile_club_identities, reconcile_provider_identities, reconcile_unattributed_clubs, store_match
 
 
 def match(external_id: str, home: str, away: str) -> dict[str, str]:
@@ -33,6 +33,19 @@ def test_equal_display_names_in_different_countries_remain_distinct():
     clubs = database.execute("SELECT name, country, identity_key FROM clubs WHERE name='United' ORDER BY country").fetchall()
     assert len(clubs) == 2
     assert {row["identity_key"] for row in clubs} == {"BR:united", "EN:united"}
+
+
+def test_unattributed_legacy_club_joins_single_confirmed_identity():
+    database = connect(":memory:")
+    initialise(database)
+    database.execute("INSERT INTO clubs(id, name, identity_key, crest_url) VALUES (1, 'Liverpool', '??:liverpool', 'crest')")
+    database.execute("INSERT INTO clubs(id, name, identity_key, crest_url, country) VALUES (2, 'Liverpool', 'EN:liverpool', 'crest', 'Inglaterra')")
+    database.execute("INSERT INTO clubs(id, name, identity_key, country) VALUES (3, 'Rival', 'EN:rival', 'Inglaterra')")
+    database.execute("""INSERT INTO matches(external_id, played_at, competition, home_club_id, away_club_id, home_goals, away_goals)
+                        VALUES ('legacy-liverpool', '2026-02-01T12:00:00-03:00', 'Série A', 1, 3, 1, 0)""")
+
+    assert reconcile_unattributed_clubs(database) == 1
+    assert database.execute("SELECT home_club_id FROM matches WHERE external_id='legacy-liverpool'").fetchone()[0] == 2
 
 
 def test_ambiguous_names_are_not_merged_by_text_similarity():
