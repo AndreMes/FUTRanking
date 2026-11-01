@@ -32,7 +32,8 @@ MATCHES_TABLE = f"""CREATE TABLE matches (
 SCHEMA = f"""
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clubs (
-  id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, crest_url TEXT, country TEXT, state TEXT, primary_color TEXT
+  id INTEGER PRIMARY KEY, name TEXT NOT NULL, identity_key TEXT UNIQUE,
+  crest_url TEXT, country TEXT, state TEXT, primary_color TEXT
 );
 CREATE TABLE IF NOT EXISTS club_aliases (
   alias_key TEXT NOT NULL, country_key TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
@@ -95,6 +96,7 @@ def initialise(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs ADD COLUMN state TEXT")
     if "primary_color" not in columns:
         database.execute("ALTER TABLE clubs ADD COLUMN primary_color TEXT")
+    _migrate_club_identity_schema(database)
     for table in ("matches", "fixtures"):
         columns = {row["name"] for row in database.execute(f"PRAGMA table_info({table})")}
         for column, kind in (("matchday", "INTEGER"), ("neutral_site", "INTEGER NOT NULL DEFAULT 0"), ("home_advantage", "REAL NOT NULL DEFAULT 80"), ("venue_country", "TEXT"), ("stage", "TEXT"), ("group_name", "TEXT")):
@@ -109,6 +111,63 @@ def initialise(database: sqlite3.Connection) -> None:
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
 
+def _club_identity_key(name: str, country: str | None) -> str:
+    """Chave estável de clube: a mesma razão social pode existir em países distintos.
+
+    O nome continua sendo o texto de apresentação. A chave é usada somente
+    internamente e nunca reduz um homônimo internacional a uma única entidade.
+    """
+    country_key = _country_key(country) or "??"
+    return f"{country_key}:{alias_key(canonical_name(name, country_key))}"
+
+
+def _migrate_club_identity_schema(database: sqlite3.Connection) -> None:
+    """Troca o antigo UNIQUE(name) por uma identidade país+nome.
+
+    A migração preserva IDs e todas as referências já existentes em partidas,
+    snapshots e aliases. É necessária para que, por exemplo, clubes europeus
+    homônimos nunca sejam confundidos com clubes já cadastrados no Brasil.
+    """
+    columns = {row["name"] for row in database.execute("PRAGMA table_info(clubs)")}
+    schema_row = database.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='clubs'"
+    ).fetchone()
+    schema = str(schema_row["sql"] or "") if schema_row else ""
+    needs_rebuild = "identity_key" not in columns or "name TEXT NOT NULL UNIQUE" in schema.replace("\\n", " ")
+    if not needs_rebuild:
+        for row in database.execute("SELECT id, name, country, identity_key FROM clubs WHERE identity_key IS NULL OR identity_key='' "):
+            database.execute(
+                "UPDATE clubs SET identity_key=? WHERE id=?",
+                (_club_identity_key(str(row["name"]), row["country"]), int(row["id"])),
+            )
+        return
+
+    rows = database.execute(
+        "SELECT id, name, crest_url, country, state, primary_color FROM clubs ORDER BY id"
+    ).fetchall()
+    database.execute("PRAGMA foreign_keys = OFF")
+    try:
+        database.execute(
+            """CREATE TABLE clubs_new (
+              id INTEGER PRIMARY KEY, name TEXT NOT NULL, identity_key TEXT UNIQUE,
+              crest_url TEXT, country TEXT, state TEXT, primary_color TEXT
+            )"""
+        )
+        database.executemany(
+            """INSERT INTO clubs_new(id, name, identity_key, crest_url, country, state, primary_color)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            [
+                (
+                    int(row["id"]), str(row["name"]), _club_identity_key(str(row["name"]), row["country"]),
+                    row["crest_url"], row["country"], row["state"], row["primary_color"],
+                )
+                for row in rows
+            ],
+        )
+        database.execute("DROP TABLE clubs")
+        database.execute("ALTER TABLE clubs_new RENAME TO clubs")
+    finally:
+        database.execute("PRAGMA foreign_keys = ON")
 
 def _migrate_matches_competition_check(database: sqlite3.Connection) -> None:
     """Amplia o catálogo sem descartar o histórico já persistido.
@@ -168,8 +227,13 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
     if alias:
         club_id = int(alias["club_id"])
     else:
-        database.execute("INSERT OR IGNORE INTO clubs(name) VALUES (?)", (target_name,))
-        club_id = int(database.execute("SELECT id FROM clubs WHERE name=?", (target_name,)).fetchone()[0])
+        identity_key = _club_identity_key(target_name, country)
+        existing = database.execute("SELECT id FROM clubs WHERE identity_key=?", (identity_key,)).fetchone()
+        if existing:
+            club_id = int(existing["id"])
+        else:
+            database.execute("INSERT INTO clubs(name, identity_key) VALUES (?, ?)", (target_name, identity_key))
+            club_id = int(database.execute("SELECT last_insert_rowid()").fetchone()[0])
         _register_alias(database, target_name, country, club_id)
         _register_alias(database, name, country, club_id)
     if crest_url:
@@ -186,6 +250,9 @@ COUNTRY_KEYS = {
     "chile": "CL", "colombia": "CO", "colômbia": "CO", "ecuador": "EC", "equador": "EC",
     "paraguay": "PY", "paraguai": "PY", "peru": "PE", "perú": "PE", "uruguay": "UY",
     "uruguai": "UY", "venezuela": "VE",
+    "inglaterra": "EN", "england": "EN", "espanha": "ES", "spain": "ES",
+    "italia": "IT", "itália": "IT", "italy": "IT", "alemanha": "DE", "germany": "DE",
+    "franca": "FR", "frança": "FR", "france": "FR",
 }
 
 
@@ -232,12 +299,16 @@ def _can_merge_club(database: sqlite3.Connection, source_id: int, target_id: int
     ).fetchone()
     if same_match:
         return False
-    states = database.execute(
-        "SELECT id, state FROM clubs WHERE id IN (?, ?)", (source_id, target_id)
+    identities = database.execute(
+        "SELECT id, country, state FROM clubs WHERE id IN (?, ?)", (source_id, target_id)
     ).fetchall()
-    if len(states) != 2:
+    if len(identities) != 2:
         return False
-    state_by_id = {int(row["id"]): row["state"] for row in states}
+    country_by_id = {int(row["id"]): _country_key(row["country"]) for row in identities}
+    source_country, target_country = country_by_id[source_id], country_by_id[target_id]
+    if source_country and target_country and source_country != target_country:
+        return False
+    state_by_id = {int(row["id"]): row["state"] for row in identities}
     source_state, target_state = state_by_id[source_id], state_by_id[target_id]
     if source_state and target_state and source_state != target_state:
         return False
