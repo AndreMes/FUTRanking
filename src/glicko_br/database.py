@@ -300,6 +300,7 @@ COUNTRY_KEYS = {
     "inglaterra": "EN", "england": "EN", "espanha": "ES", "spain": "ES",
     "italia": "IT", "itália": "IT", "italy": "IT", "alemanha": "DE", "germany": "DE",
     "franca": "FR", "frança": "FR", "france": "FR",
+    "portugal": "PT", "holanda": "NL", "netherlands": "NL", "belgica": "BE", "bélgica": "BE", "belgium": "BE",
 }
 
 
