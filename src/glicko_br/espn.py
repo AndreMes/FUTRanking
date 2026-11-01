@@ -149,6 +149,7 @@ def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
     venue_country = _venue_country(event)
     return {
         "external_id": f"espn:{event['id']}",
+        "provider": "espn",
         "played_at": str(event["date"]),
         "competition": competition,
         "matchday": matchday,
@@ -160,6 +161,8 @@ def event_to_row(event: dict, competition: str) -> dict[str, str] | None:
         "away_crest": away_crest,
         "home_espn_team_id": home_id,
         "away_espn_team_id": away_id,
+        "home_provider_team_id": home_id,
+        "away_provider_team_id": away_id,
         "venue_country": venue_country,
         "home_goals": str(home_score),
         "away_goals": str(away_score),
@@ -181,6 +184,7 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
     status = ((event.get("status") or {}).get("type") or {})
     return {
         "external_id": f"espn:{event['id']}",
+        "provider": "espn",
         "scheduled_at": str(event["date"]),
         "competition": competition,
         "status": str(status.get("name") or status.get("description") or "STATUS_SCHEDULED"),
@@ -193,6 +197,8 @@ def event_to_fixture(event: dict, competition: str) -> dict[str, str] | None:
         "away_crest": away_crest,
         "home_espn_team_id": home_id,
         "away_espn_team_id": away_id,
+        "home_provider_team_id": home_id,
+        "away_provider_team_id": away_id,
         "venue_country": venue_country,
     }
 
@@ -280,4 +286,3 @@ def sync_fixture_schedule(database, season: str, *, leagues: dict[str, str] = LE
         replace_fixtures(database, fixtures, replace=False)
         fixtures_found += len(fixtures)
     return fixtures_found
-
