@@ -35,8 +35,8 @@ def test_competition_scope_is_explicit_and_weighted_consistently():
     assert competition_scope("Copa do Brasil") == "continental"
     assert competition_scope("FIFA Club World Cup") == "world"
     assert competition_scope_weight("Série A") == 1.0
-    assert competition_scope_weight("CONMEBOL Libertadores") == 1.25
-    assert competition_scope_weight("FIFA Club World Cup") == 1.5
+    assert competition_scope_weight("CONMEBOL Libertadores") == 1.5
+    assert competition_scope_weight("FIFA Club World Cup") == 3.0
 
 
 def test_completed_match_is_never_retained_as_fixture():
@@ -110,4 +110,3 @@ def test_model_selection_uses_temporal_holdout_and_caches_result():
     assert len(first["variants"]) == 4
     assert first["test_matches"] > 0
     assert first == second
-
