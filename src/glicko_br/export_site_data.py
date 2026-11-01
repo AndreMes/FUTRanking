@@ -411,6 +411,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--database", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--history-output", help="Arquivo separado com o histórico completo de resultados")
     args = parser.parse_args()
     database = connect(args.database)
     initialise(database)
@@ -461,7 +462,6 @@ def main() -> None:
         "eligibility": {"max_inactivity_days": MAX_INACTIVITY_DAYS, "max_rd": MAX_RANKING_RD},
         "teams": teams,
         "excluded_teams": excluded_teams,
-        "matches": matches,
         "fixtures": fixtures,
         "data_health": health,
         "identity_audit": exported_identity_audit(database),
@@ -470,7 +470,11 @@ def main() -> None:
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    output.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    if args.history_output:
+        history_output = Path(args.history_output)
+        history_output.parent.mkdir(parents=True, exist_ok=True)
+        history_output.write_text(json.dumps({"matches": matches}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"{len(ranking)} clubes exportados para {output}")
 
 
