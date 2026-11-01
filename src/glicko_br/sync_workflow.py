@@ -6,13 +6,22 @@ from datetime import date, timedelta
 from pathlib import Path
 from time import monotonic
 
-from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION
+from .competitions import COMPETITION_CATALOG_VERSION, DATA_ENRICHMENT_VERSION, ESPN_COMPETITIONS
 from .database import HOME_ADVANTAGE, connect, initialise, prune_stale_fixtures, recreate_matches_table, store_source_payload
 from .espn import EspnClient, EspnError, sync_fixture_schedule, sync_period
 from .global_sports_archive import GlobalSportsArchiveClient, GlobalSportsArchiveError, bootstrap_national_cups, bootstrap_regional_bridges, bootstrap_serie_d, bootstrap_state_competitions, sync_current as sync_gsa_current
 
 HISTORY_START_YEAR = 2016
 ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}-home-{int(HOME_ADVANTAGE)}"
+# Catálogo que já estava coberto antes da expansão europeia. Ao migrar o
+# marcador, ele evita baixar novamente dezenas de milhares de partidas que já
+# vivem no banco persistente.
+LEGACY_ESPN_SLUGS = frozenset({
+    "arg.1", "bra.1", "bra.2", "bra.3", "bra.4", "bra.camp.paulista",
+    "bra.camp.carioca", "bra.camp.mineiro", "bra.camp.gaucho", "bra.copa_do_brazil",
+    "conmebol.libertadores", "conmebol.sudamericana", "FIFA.CWC", "chi.1", "col.1",
+    "ecu.1", "uru.1", "par.1", "per.1", "bol.1", "ven.1",
+})
 GSA_SERIE_D_BOOTSTRAP_VERSION = "global-sports-archive-serie-d-2016-v1"
 GSA_STATE_BOOTSTRAP_VERSION = "global-sports-archive-state-leagues-2016-v1"
 GSA_REGIONAL_BRIDGES_BOOTSTRAP_VERSION = "global-sports-archive-regional-bridges-2016-v4"
@@ -23,6 +32,21 @@ def reset_match_data(database) -> None:
     """Remove a carga anterior dentro da transação de migração ESPN."""
     for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "club_aliases", "clubs", "rating_model", "model_evaluations"):
         database.execute(f"DELETE FROM {table}")
+
+
+def _history_marker(competition) -> str:
+    return f"{competition.espn_slug}:{competition.start_year}:v1"
+
+
+def _has_history_marker(database, competition) -> bool:
+    return bool(database.execute(
+        "SELECT 1 FROM source_payloads WHERE source='espn-history-coverage' AND request_path=? LIMIT 1",
+        (_history_marker(competition),),
+    ).fetchone())
+
+
+def _mark_history_loaded(database, competition) -> None:
+    store_source_payload(database, "espn-history-coverage", _history_marker(competition), "{}")
 
 
 def main() -> None:
@@ -42,32 +66,51 @@ def main() -> None:
     gsa_client = GlobalSportsArchiveClient()
     workflow_started = monotonic()
     print(f"[sync] início: {today.isoformat()}; última sincronização: {last_sync or 'nenhuma'}; modo completo: {args.full}.")
-    bootstrap = not database.execute(
-        "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' AND request_path=? LIMIT 1",
-        (ESPN_BOOTSTRAP_VERSION,),
-    ).fetchone()
+    legacy_bootstrap = bool(database.execute(
+        "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' LIMIT 1"
+    ).fetchone())
+    missing_history = [competition for competition in ESPN_COMPETITIONS if not _has_history_marker(database, competition)]
+    # Bancos existentes ganham marcadores para as competições que já estavam
+    # no catálogo. Só as ligas novas são baixadas; não há reconstrução total.
+    if legacy_bootstrap:
+        for competition in list(missing_history):
+            if competition.espn_slug in LEGACY_ESPN_SLUGS:
+                _mark_history_loaded(database, competition)
+        missing_history = [competition for competition in ESPN_COMPETITIONS if not _has_history_marker(database, competition)]
     try:
         with database:
-            if bootstrap:
-                # Não misturamos IDs de fontes diferentes: a transação troca todo o histórico de uma vez.
+            if not legacy_bootstrap:
+                # Primeiro banco: cria um acervo íntegro de uma vez.
                 reset_match_data(database)
                 recreate_matches_table(database)
+                missing_history = list(ESPN_COMPETITIONS)
+            if missing_history:
                 total = 0
-                for season in range(HISTORY_START_YEAR, today.year + 1):
-                    started = monotonic()
-                    requests_before = client.request_count
-                    count = sync_period(database, str(season), client=client)
-                    total += count
+                for competition in missing_history:
+                    competition_total = 0
+                    started_competition = monotonic()
+                    requests_before_competition = client.request_count
+                    for season in range(max(HISTORY_START_YEAR, competition.start_year), today.year + 1):
+                        started = monotonic()
+                        requests_before = client.request_count
+                        count = sync_period(
+                            database, str(season), leagues={competition.espn_slug: competition.name}, client=client
+                        )
+                        total += count
+                        competition_total += count
+                        print(
+                            f'[ESPN][histórico] {competition.name} {season}: {count} resultados; '
+                            f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                        )
+                    _mark_history_loaded(database, competition)
                     print(
-                        f'[ESPN][histórico] temporada {season}: {count} resultados; '
-                        f'{client.request_count - requests_before} chamadas; {monotonic() - started:.1f}s.'
+                        f'[ESPN][histórico] {competition.name}: concluído — {competition_total} resultados; '
+                        f'{client.request_count - requests_before_competition} chamadas; '
+                        f'{monotonic() - started_competition:.1f}s.'
                     )
                 if not total:
                     raise EspnError('A carga histórica ESPN não retornou resultados; banco anterior preservado.')
                 store_source_payload(database, "espn-bootstrap", ESPN_BOOTSTRAP_VERSION, "{}")
-                # A reconstrução ESPN é a etapa mais longa. Confirma-a antes
-                # de iniciar as fontes complementares para que uma falha nelas
-                # não obrigue a repetir todo o histórico na execução seguinte.
                 database.commit()
                 print(f'Carga histórica ESPN concluída: {total} resultados.')
             else:
