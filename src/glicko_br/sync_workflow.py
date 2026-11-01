@@ -13,6 +13,10 @@ from .global_sports_archive import GlobalSportsArchiveClient, GlobalSportsArchiv
 
 HISTORY_START_YEAR = 2016
 ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSION}-{DATA_ENRICHMENT_VERSION}-home-{int(HOME_ADVANTAGE)}"
+# A primeira expansão internacional revelou que o antigo identificador global
+# por nome confundia homônimos de países diferentes (por exemplo Liverpool).
+# Esta marca dispara uma única reconstrução com IDs estáveis do provedor.
+IDENTITY_REBUILD_VERSION = "country-scoped-provider-identity-v1"
 # Catálogo que já estava coberto antes da expansão europeia. Ao migrar o
 # marcador, ele evita baixar novamente dezenas de milhares de partidas que já
 # vivem no banco persistente.
@@ -30,7 +34,7 @@ GSA_NATIONAL_CUPS_BOOTSTRAP_VERSION = "global-sports-archive-national-cups-2016-
 
 def reset_match_data(database) -> None:
     """Remove a carga anterior dentro da transação de migração ESPN."""
-    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "club_aliases", "clubs", "rating_model", "model_evaluations"):
+    for table in ("match_rating_effects", "match_forecasts", "rating_snapshots", "rating_states", "processed_matches", "fixtures", "matches", "source_payloads", "club_provider_ids", "club_aliases", "clubs", "rating_model", "model_evaluations"):
         database.execute(f"DELETE FROM {table}")
 
 
@@ -66,6 +70,16 @@ def main() -> None:
     gsa_client = GlobalSportsArchiveClient()
     workflow_started = monotonic()
     print(f"[sync] início: {today.isoformat()}; última sincronização: {last_sync or 'nenhuma'}; modo completo: {args.full}.")
+    identity_rebuild = not database.execute(
+        "SELECT 1 FROM source_payloads WHERE source='identity-rebuild' AND request_path=? LIMIT 1",
+        (IDENTITY_REBUILD_VERSION,),
+    ).fetchone()
+    if identity_rebuild:
+        print("[identidade] reconstrução única: substituindo nomes globais por identidade país+provedor.")
+        with database:
+            reset_match_data(database)
+            recreate_matches_table(database)
+            store_source_payload(database, "identity-rebuild", IDENTITY_REBUILD_VERSION, "{}")
     legacy_bootstrap = bool(database.execute(
         "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' LIMIT 1"
     ).fetchone())
@@ -208,4 +222,3 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-
