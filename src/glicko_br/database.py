@@ -760,7 +760,7 @@ def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> li
     as_of = as_of or datetime.now().astimezone().isoformat()
     reference = max(latest, as_of)
     rows = database.execute(
-        """SELECT c.name, c.crest_url, s.rating, s.rd, s.volatility, s.updated_at
+        """SELECT c.id AS club_id, c.name, c.country, c.crest_url, s.rating, s.rd, s.volatility, s.updated_at
            FROM rating_states s JOIN clubs c ON c.id=s.club_id ORDER BY s.rating DESC, s.rd ASC, c.name"""
     ).fetchall()
     ranking = []
@@ -772,7 +772,7 @@ def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> li
             reasons.append("sem resultados rastreados recentes")
         if adjusted.rd >= MAX_RANKING_RD:
             reasons.append("incerteza alta")
-        ranking.append({"name": row["name"], "crest_url": row["crest_url"], "rating": adjusted.rating, "rd": adjusted.rd,
+        ranking.append({"club_id": int(row["club_id"]), "name": row["name"], "country": row["country"], "crest_url": row["crest_url"], "rating": adjusted.rating, "rd": adjusted.rd,
                         "volatility": adjusted.volatility, "period_date": reference, "last_tracked_at": row["updated_at"],
                         "days_without_tracking": days_without_tracking, "eligible": not reasons, "ineligibility_reasons": reasons})
     return sorted(ranking, key=lambda row: (-row["rating"], row["rd"], row["name"]))
