@@ -29,7 +29,10 @@ ESPN_COMPETITIONS = (
     Competition("bra.camp.carioca", "Campeonato Carioca"),
     Competition("bra.camp.mineiro", "Campeonato Mineiro"),
     Competition("bra.camp.gaucho", "Campeonato Gaúcho"),
-    Competition("bra.copa_do_brazil", "Copa do Brasil"),
+    # Pelo alcance nacional e pela presença recorrente de clubes de várias
+    # divisões, a Copa do Brasil funciona como ponte de informação entre
+    # ecossistemas competitivos. No modelo ela recebe peso continental.
+    Competition("bra.copa_do_brazil", "Copa do Brasil", "continental"),
     Competition("conmebol.libertadores", "CONMEBOL Libertadores", "continental"),
     Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana", "continental"),
     Competition("FIFA.CWC", "FIFA Club World Cup", "world"),
@@ -172,8 +175,8 @@ COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITI
 # continental só porque tem um campeão que também disputa a Libertadores.
 COMPETITION_SCOPE_WEIGHTS = {
     "domestic": 1.00,
-    "continental": 1.15,
-    "world": 1.25,
+    "continental": 1.25,
+    "world": 1.50,
 }
 CONTINENTAL_COMPETITION_NAMES = frozenset(
     competition.name for competition in ESPN_COMPETITIONS if competition.scope == "continental"
@@ -197,7 +200,7 @@ def competition_scope_weight(competition: str) -> float:
     return COMPETITION_SCOPE_WEIGHTS[competition_scope(competition)]
 
 
-COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.15-world-1.25"
+COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.25-world-1.50-copa-brasil-continental"
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}:{competition.scope}:{competition.start_year}" for competition in ESPN_COMPETITIONS
 ) + f"|{COMPETITION_SCOPE_VERSION}"
