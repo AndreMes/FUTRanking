@@ -40,10 +40,18 @@ ESPN_COMPETITIONS = (
     # Os dados históricos são carregados uma vez por competição, e não alteram
     # o acervo já consolidado das demais coberturas.
     Competition("eng.1", "Premier League"),
+    Competition("eng.2", "EFL Championship"),
     Competition("esp.1", "LaLiga"),
+    Competition("esp.2", "LaLiga 2"),
     Competition("ita.1", "Serie A"),
+    Competition("ita.2", "Serie B"),
     Competition("ger.1", "Bundesliga"),
+    Competition("ger.2", "2. Bundesliga"),
     Competition("fra.1", "Ligue 1"),
+    Competition("fra.2", "Ligue 2"),
+    Competition("por.1", "Primeira Liga"),
+    Competition("ned.1", "Eredivisie"),
+    Competition("bel.1", "Belgian Pro League"),
     Competition("uefa.champions", "UEFA Champions League", "continental"),
     Competition("uefa.europa", "UEFA Europa League", "continental"),
     Competition("uefa.europa.conf", "UEFA Conference League", "continental", 2021),
@@ -141,10 +149,18 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Liga Profissional da Bolívia": "Bolívia",
     "Primera División da Venezuela": "Venezuela",
     "Premier League": "Inglaterra",
+    "EFL Championship": "Inglaterra",
     "LaLiga": "Espanha",
+    "LaLiga 2": "Espanha",
     "Serie A": "Itália",
+    "Serie B": "Itália",
     "Bundesliga": "Alemanha",
+    "2. Bundesliga": "Alemanha",
     "Ligue 1": "França",
+    "Ligue 2": "França",
+    "Primeira Liga": "Portugal",
+    "Eredivisie": "Holanda",
+    "Belgian Pro League": "Bélgica",
 }
 
 # Os estaduais não são apenas competições: eles também fornecem uma evidência
