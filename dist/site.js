@@ -797,17 +797,23 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
     const countries = [...new Set([...data.teams, ...(data.excluded_teams || [])].map(team => team.country).filter(country => country && country !== 'País não informado'))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     el('#content').innerHTML = `<p>Força estimada. Dados sincronizados em ${time(data.generated_at)}. Inclui apenas clubes com jogos rastreados nos últimos ${data.eligibility.max_inactivity_days} dias e RD abaixo de ${data.eligibility.max_rd}. Os filtros por divisão exibem os clubes que disputam aquela Série nesta temporada; o rating continua sendo global. Clique em um clube.</p><div class="ranking-filters" role="group" aria-label="Filtrar ranking">${filters.map(([value, label], index) => `<button type="button" data-division="${value}" class="${index === 0 ? 'active' : ''}">${label}</button>`).join('')}<select class="country-filter" aria-label="Filtrar ranking por país"><option value="">Todos os países</option>${countries.map(country => `<option value="${country}">${country}</option>`).join('')}</select></div><p class="ranking-summary"></p><section class="panel ranking-panel"></section>`;
     const buttons = [...document.querySelectorAll('[data-division]')], countryFilter = el('.country-filter'), summary = el('.ranking-summary'), panel = el('.ranking-panel');
-    let selectedDivision = 'general';
+    let selectedDivision = 'general', rankingPage = 1;
+    const rankingPageSize = 20;
     const renderRanking = () => {
       let teams = selectedDivision === 'general' ? data.teams : data.teams.filter(team => (team.divisions || []).includes(selectedDivision));
       if (countryFilter.value) teams = teams.filter(team => team.country === countryFilter.value);
       const scope = [selectedDivision === 'general' ? 'ranking geral' : selectedDivision, countryFilter.value].filter(Boolean).join(' · ');
       summary.textContent = `${teams.length} clubes elegíveis em ${scope}.`;
-      panel.innerHTML = `<div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${teams.map((team, index) => `<a class="row rank" href="clube.html?time=${encodeURIComponent(team.name)}"><span>${index + 1}º</span><b>${club(team.name, team.crest)}</b><strong>${Math.round(team.rating)}</strong></a>`).join('') || '<p class="empty-list">Não há clubes elegíveis neste filtro.</p>'}`;
+      const pages = Math.max(1, Math.ceil(teams.length / rankingPageSize));
+      rankingPage = Math.min(rankingPage, pages);
+      const start = (rankingPage - 1) * rankingPageSize, visible = teams.slice(start, start + rankingPageSize);
+      panel.innerHTML = `<div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${visible.map((team, index) => `<a class="row rank" href="clube.html?time=${encodeURIComponent(team.name)}"><span>${start + index + 1}º</span><b>${club(team.name, team.crest)}</b><strong>${Math.round(team.rating)}</strong></a>`).join('') || '<p class="empty-list">Não há clubes elegíveis neste filtro.</p>'}${teams.length > rankingPageSize ? `<div class="pager"><span>${start + 1}–${Math.min(start + rankingPageSize, teams.length)} de ${teams.length}</span><div class="pager-actions"><button type="button" data-ranking-page="previous" ${rankingPage === 1 ? 'disabled' : ''}>Anterior</button><button type="button" data-ranking-page="next" ${rankingPage === pages ? 'disabled' : ''}>Próximos</button></div></div>` : ''}`;
+      panel.querySelector('[data-ranking-page="previous"]')?.addEventListener('click', () => { rankingPage -= 1; renderRanking(); });
+      panel.querySelector('[data-ranking-page="next"]')?.addEventListener('click', () => { rankingPage += 1; renderRanking(); });
       buttons.forEach(button => button.classList.toggle('active', button.dataset.division === selectedDivision));
     };
-    buttons.forEach(button => button.addEventListener('click', () => { selectedDivision = button.dataset.division; renderRanking(); }));
-    countryFilter.addEventListener('change', renderRanking);
+    buttons.forEach(button => button.addEventListener('click', () => { selectedDivision = button.dataset.division; rankingPage = 1; renderRanking(); }));
+    countryFilter.addEventListener('change', () => { rankingPage = 1; renderRanking(); });
     renderRanking();
   }
   if (page === 'resultados') {
