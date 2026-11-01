@@ -1,6 +1,12 @@
 const q = new URLSearchParams(location.search), page = document.body.dataset.page, el = s => document.querySelector(s);
 const dataUrl = document.body.dataset.dataUrl || './data/ranking.json';
-const freshDataUrl = `${dataUrl}${dataUrl.includes('?') ? '&' : '?'}v=${Date.now()}`;
+const freshDataUrl = dataUrl;
+const historyUrl = `${dataUrl.slice(0, dataUrl.lastIndexOf('/') + 1)}history.json`;
+let historyPromise;
+const loadHistory = () => historyPromise ||= fetch(historyUrl).then(response => {
+  if (!response.ok) throw new Error(`Histórico indisponível (${response.status})`);
+  return response.json();
+});
 const date = v => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(new Date(`${v}T12:00:00`));
 const time = v => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(new Date(v));
 const matchTime = v => v.includes('T') ? time(v) : date(v);
@@ -806,8 +812,8 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
   }
   if (page === 'resultados') {
     document.body.innerHTML = shell('Últimos resultados', 'Transparência');
-    el('#content').innerHTML = `<p>Rating após o ciclo e impacto estimado daquele jogo. Horários em Brasília. Pesquise por clube, competição, rodada ou fase.</p><div class="list-host"></div>`;
-    mountPagedList(el('.list-host'), data.matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum resultado corresponde à busca.' });
+    el('#content').innerHTML = `<p>Rating após o ciclo e impacto estimado daquele jogo. Horários em Brasília. Pesquise por clube, competição, rodada ou fase.</p><div class="list-host"><p aria-live="polite">Carregando histórico de resultados…</p></div>`;
+    loadHistory().then(history => mountPagedList(el('.list-host'), history.matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar clube, competição, rodada ou fase', pageSize: 15, emptyText: 'Nenhum resultado corresponde à busca.' })).catch(() => { el('.list-host').innerHTML = '<p class="empty-list">Não foi possível carregar o histórico agora.</p>'; });
   }
   if (page === 'fixtures') {
     document.body.innerHTML = shell('Próximos jogos', 'Agenda');
@@ -820,22 +826,31 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
   if (page === 'club') {
     const name = q.get('time'), team = [...data.teams, ...(data.excluded_teams || [])].find(t => t.name === name);
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
-    const matches = data.matches.filter(m => m.home_team === name || m.away_team === name), fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
+    const fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
     document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
     const confidence = ratingConfidence(Number(team.rd));
     const country = team.country || 'País não informado';
     const stateTag = countryLabel(country) === 'Brasil' && team.state ? `<span>${team.state}</span>` : '';
     const locationTags = [`<span class="country-tag">${countryFlag(country)}${countryLabel(country)}</span>`, stateTag, ...(team.divisions || []).map(value => `<span>${value}</span>`)].filter(Boolean).join('');
     el('#content').innerHTML = `<a class="back club-return" href="ranking.html">← Voltar ao ranking</a><section class="club-overview"><div class="club-context"><span class="club-context-label">Identidade do clube</span><div class="club-tags">${locationTags}</div></div><div class="club-primary-grid"><article class="club-key-stat"><span>Posição</span><strong>${team.position ? `${team.position}º` : '—'}</strong><small>${team.position ? 'ranking geral atual' : 'fora do ranking atual'}</small></article><article class="club-key-stat rating-key"><span>Rating Glicko-2</span><strong>${Math.round(team.rating)}</strong><small>força estimada</small></article><article class="club-confidence"><div><span>Desvio de rating (RD)</span><strong>${Number(team.rd).toFixed(1)}</strong></div><span class="confidence-badge ${confidence.tone}">${confidence.label}</span><p>${confidence.description} Quanto menor o RD, maior a confiança do modelo.</p></article></div><div class="club-secondary-grid"><article><strong>${p.games}</strong><span>jogos rastreados</span></article><article><strong>${p.wins} · ${p.draws} · ${p.losses}</strong><span>vitórias · empates · derrotas</span></article><article><strong>${p.goals_for}:${p.goals_against}</strong><span>gols pró : contra</span></article></div></section><div class="chart-host"></div><h2>Próximos fixtures</h2><div class="fixtures-host"></div><h2>Últimos resultados</h2><div class="results-host"></div>`;
-    mountRatingChart(el('.chart-host'), matches, name);
+    el('.chart-host').innerHTML = '<p aria-live="polite">Carregando histórico do clube…</p>';
     mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
-    mountPagedList(el('.results-host'), matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
+    el('.results-host').innerHTML = '<p aria-live="polite">Carregando resultados do clube…</p>';
+    loadHistory().then(history => {
+      const matches = history.matches.filter(m => m.home_team === name || m.away_team === name);
+      mountRatingChart(el('.chart-host'), matches, name);
+      mountPagedList(el('.results-host'), matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
+    }).catch(() => {
+      el('.chart-host').innerHTML = '<p class="empty-list">Não foi possível carregar o histórico do clube agora.</p>';
+      el('.results-host').innerHTML = '<p class="empty-list">Não foi possível carregar os resultados do clube agora.</p>';
+    });
   }
   if (page === 'simulation') {
     simulations(data);
   }
   if (page === 'comparison') {
-    comparisons(data);
+    el('#content').innerHTML = '<p aria-live="polite">Carregando históricos para a comparação…</p>';
+    loadHistory().then(history => comparisons({ ...data, matches: history.matches })).catch(() => { el('#content').innerHTML = '<p class="empty-list">Não foi possível carregar os históricos para comparação agora.</p>'; });
   }
   if (page === 'data-health') {
     dataHealth(data);
