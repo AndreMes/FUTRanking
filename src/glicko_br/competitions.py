@@ -14,6 +14,7 @@ class Competition:
     espn_slug: str
     name: str
     scope: str = "domestic"
+    start_year: int = 2016
 
 
 ESPN_COMPETITIONS = (
@@ -32,6 +33,17 @@ ESPN_COMPETITIONS = (
     Competition("conmebol.libertadores", "CONMEBOL Libertadores", "continental"),
     Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana", "continental"),
     Competition("FIFA.CWC", "FIFA Club World Cup", "world"),
+    # Europa: nomes de exibição seguem o uso editorial das próprias ligas.
+    # Os dados históricos são carregados uma vez por competição, e não alteram
+    # o acervo já consolidado das demais coberturas.
+    Competition("eng.1", "Premier League"),
+    Competition("esp.1", "LaLiga"),
+    Competition("ita.1", "Serie A"),
+    Competition("ger.1", "Bundesliga"),
+    Competition("fra.1", "Ligue 1"),
+    Competition("uefa.champions", "UEFA Champions League", "continental"),
+    Competition("uefa.europa", "UEFA Europa League", "continental"),
+    Competition("uefa.europa.conf", "UEFA Conference League", "continental", 2021),
     Competition("chi.1", "Primera División do Chile"),
     Competition("col.1", "Primera A Colombiana"),
     Competition("ecu.1", "LigaPro Equador"),
@@ -125,6 +137,11 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Liga 1 do Peru": "Peru",
     "Liga Profissional da Bolívia": "Bolívia",
     "Primera División da Venezuela": "Venezuela",
+    "Premier League": "Inglaterra",
+    "LaLiga": "Espanha",
+    "Serie A": "Itália",
+    "Bundesliga": "Alemanha",
+    "Ligue 1": "França",
 }
 
 # Os estaduais não são apenas competições: eles também fornecem uma evidência
@@ -182,7 +199,7 @@ def competition_scope_weight(competition: str) -> float:
 
 COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.15-world-1.25"
 COMPETITION_CATALOG_VERSION = "|".join(
-    f"{competition.espn_slug}:{competition.name}:{competition.scope}" for competition in ESPN_COMPETITIONS
+    f"{competition.espn_slug}:{competition.name}:{competition.scope}:{competition.start_year}" for competition in ESPN_COMPETITIONS
 ) + f"|{COMPETITION_SCOPE_VERSION}"
 # Atualiza uma única vez os bancos persistidos que ainda não carregaram a Série B 2026.
 DATA_ENRICHMENT_VERSION = "club-country-venue-v3-serie-b"
