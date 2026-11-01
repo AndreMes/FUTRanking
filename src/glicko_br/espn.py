@@ -20,6 +20,7 @@ COUNTRY_BY_LEAGUE_PREFIX = {
     "arg": "Argentina", "bol": "Bolívia", "bra": "Brasil", "chi": "Chile",
     "col": "Colômbia", "ecu": "Equador", "par": "Paraguai", "per": "Peru",
     "uru": "Uruguai", "ven": "Venezuela", "mex": "México",
+    "eng": "Inglaterra", "esp": "Espanha", "ita": "Itália", "ger": "Alemanha", "fra": "França",
 }
 
 
