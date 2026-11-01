@@ -301,6 +301,10 @@ COUNTRY_KEYS = {
     "italia": "IT", "itália": "IT", "italy": "IT", "alemanha": "DE", "germany": "DE",
     "franca": "FR", "frança": "FR", "france": "FR",
     "portugal": "PT", "holanda": "NL", "netherlands": "NL", "belgica": "BE", "bélgica": "BE", "belgium": "BE",
+    "turquia": "TR", "turkey": "TR", "escocia": "GB", "escócia": "GB", "scotland": "GB",
+    "suica": "CH", "suíça": "CH", "switzerland": "CH", "austria": "AT", "áustria": "AT",
+    "dinamarca": "DK", "denmark": "DK", "grecia": "GR", "grécia": "GR", "greece": "GR",
+    "tchequia": "CZ", "tchéquia": "CZ", "czechia": "CZ", "czech republic": "CZ",
 }
 
 
