@@ -76,11 +76,7 @@ def main() -> None:
     ).fetchone()
     if identity_rebuild:
         print("[identidade] reconstrução única: substituindo nomes globais por identidade país+provedor.")
-        with database:
-            reset_match_data(database)
-            recreate_matches_table(database)
-            store_source_payload(database, "identity-rebuild", IDENTITY_REBUILD_VERSION, "{}")
-    legacy_bootstrap = bool(database.execute(
+    legacy_bootstrap = False if identity_rebuild else bool(database.execute(
         "SELECT 1 FROM source_payloads WHERE source='espn-bootstrap' LIMIT 1"
     ).fetchone())
     missing_history = [competition for competition in ESPN_COMPETITIONS if not _has_history_marker(database, competition)]
@@ -97,6 +93,8 @@ def main() -> None:
                 # Primeiro banco: cria um acervo íntegro de uma vez.
                 reset_match_data(database)
                 recreate_matches_table(database)
+                if identity_rebuild:
+                    store_source_payload(database, "identity-rebuild", IDENTITY_REBUILD_VERSION, "{}")
                 missing_history = list(ESPN_COMPETITIONS)
             if missing_history:
                 total = 0
