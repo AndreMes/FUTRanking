@@ -35,6 +35,33 @@ def test_equal_display_names_in_different_countries_remain_distinct():
     assert {row["identity_key"] for row in clubs} == {"BR:united", "EN:united"}
 
 
+def test_provider_ids_keep_same_named_international_clubs_separate():
+    database = connect(":memory:")
+    initialise(database)
+    english = match("eng-liverpool", "Liverpool", "Arsenal")
+    english.update({
+        "home_country": "Inglaterra", "away_country": "Inglaterra",
+        "provider": "espn", "home_provider_team_id": "364", "away_provider_team_id": "359",
+    })
+    uruguayan = match("uru-liverpool", "Liverpool", "Juventud")
+    uruguayan.update({
+        "home_country": "Uruguai", "away_country": "Uruguai",
+        "provider": "espn", "home_provider_team_id": "5492", "away_provider_team_id": "8416",
+    })
+    store_match(database, english)
+    store_match(database, uruguayan)
+
+    liverpool = database.execute(
+        "SELECT name, country FROM clubs WHERE name='Liverpool' ORDER BY country"
+    ).fetchall()
+    assert [(row["name"], row["country"]) for row in liverpool] == [
+        ("Liverpool", "Inglaterra"), ("Liverpool", "Uruguai"),
+    ]
+    assert database.execute(
+        "SELECT COUNT(*) FROM club_provider_ids WHERE provider='espn' AND provider_team_id IN ('364', '5492')"
+    ).fetchone()[0] == 2
+
+
 def test_ambiguous_names_are_not_merged_by_text_similarity():
     database = connect(":memory:")
     initialise(database)
