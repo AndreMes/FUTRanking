@@ -175,8 +175,8 @@ COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITI
 # continental só porque tem um campeão que também disputa a Libertadores.
 COMPETITION_SCOPE_WEIGHTS = {
     "domestic": 1.00,
-    "continental": 1.25,
-    "world": 1.50,
+    "continental": 1.50,
+    "world": 2.00,
 }
 CONTINENTAL_COMPETITION_NAMES = frozenset(
     competition.name for competition in ESPN_COMPETITIONS if competition.scope == "continental"
@@ -200,11 +200,10 @@ def competition_scope_weight(competition: str) -> float:
     return COMPETITION_SCOPE_WEIGHTS[competition_scope(competition)]
 
 
-COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.25-world-1.50-copa-brasil-continental"
+COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.50-world-2.00-copa-brasil-continental"
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}:{competition.scope}:{competition.start_year}" for competition in ESPN_COMPETITIONS
 ) + f"|{COMPETITION_SCOPE_VERSION}"
 # Atualiza uma única vez os bancos persistidos que ainda não carregaram a Série B 2026.
 DATA_ENRICHMENT_VERSION = "club-country-venue-v3-serie-b"
-
 
