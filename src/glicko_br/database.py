@@ -245,6 +245,21 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
             "SELECT club_id FROM club_provider_ids WHERE provider=? AND provider_team_id=?",
             (provider, provider_team_id),
         ).fetchone()
+        # Um ID estável do provedor não pode mudar de país. Caso uma carga
+        # legada o tenha gravado incorretamente, descartamos o vínculo ruim e
+        # recriamos a identidade pelo país informado pela competição. Nunca
+        # reaproveitamos esse clube por semelhança de nome.
+        if provider_identity and country_key:
+            mapped = database.execute(
+                "SELECT country FROM clubs WHERE id=?", (int(provider_identity["club_id"]),)
+            ).fetchone()
+            mapped_country_key = _country_key(mapped["country"] if mapped else None)
+            if mapped_country_key and mapped_country_key != country_key:
+                database.execute(
+                    "DELETE FROM club_provider_ids WHERE provider=? AND provider_team_id=?",
+                    (provider, provider_team_id),
+                )
+                provider_identity = None
     alias = database.execute(
         "SELECT club_id FROM club_aliases WHERE alias_key=? AND country_key=?", (key, country_key or "")
     ).fetchone()
@@ -339,6 +354,20 @@ def _can_merge_club(database: sqlite3.Connection, source_id: int, target_id: int
     country_by_id = {int(row["id"]): _country_key(row["country"]) for row in identities}
     source_country, target_country = country_by_id[source_id], country_by_id[target_id]
     if source_country and target_country and source_country != target_country:
+        return False
+    # IDs distintos do mesmo provedor são evidência explícita de entidades
+    # distintas. Esta trava impede fusões por apelido/nome que poderiam
+    # confundir homônimos como Liverpool, Nacional ou América.
+    provider_rows = database.execute(
+        "SELECT provider, provider_team_id, club_id FROM club_provider_ids WHERE club_id IN (?, ?)",
+        (source_id, target_id),
+    ).fetchall()
+    source_ids: dict[str, set[str]] = defaultdict(set)
+    target_ids: dict[str, set[str]] = defaultdict(set)
+    for row in provider_rows:
+        bucket = source_ids if int(row["club_id"]) == source_id else target_ids
+        bucket[str(row["provider"])].add(str(row["provider_team_id"]))
+    if any(source_ids[provider] != target_ids[provider] for provider in source_ids.keys() & target_ids.keys()):
         return False
     state_by_id = {int(row["id"]): row["state"] for row in identities}
     source_state, target_state = state_by_id[source_id], state_by_id[target_id]
