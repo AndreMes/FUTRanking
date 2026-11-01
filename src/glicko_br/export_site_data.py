@@ -26,8 +26,8 @@ def public_crest_url(url: str | None) -> str | None:
 def exported_matches(database) -> list[dict[str, object]]:
     """Resultados brutos que explicam o ranking exibido no site."""
     rows = database.execute(
-        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.name AS home_team, home.crest_url AS home_crest,
-                  away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
+        """SELECT m.external_id, m.played_at, m.competition, m.matchday, m.neutral_site, m.home_advantage, m.venue_country, m.stage, m.group_name, home.id AS home_club_id, home.name AS home_team, home.crest_url AS home_crest,
+                  away.id AS away_club_id, away.name AS away_team, away.crest_url AS away_crest, m.home_goals, m.away_goals,
                   home_effect.rating_after AS home_rating_after, home_effect.rating_effect AS home_rating_effect,
                   away_effect.rating_after AS away_rating_after, away_effect.rating_effect AS away_rating_effect
            FROM matches m
@@ -46,11 +46,11 @@ def exported_matches(database) -> list[dict[str, object]]:
     return matches
 
 
-def team_performance(matches: list[dict[str, object]], team: str) -> dict[str, int]:
+def team_performance(matches: list[dict[str, object]], club_id: int) -> dict[str, int]:
     games = wins = draws = losses = goals_for = goals_against = 0
     for match in matches:
-        is_home = match["home_team"] == team
-        if not is_home and match["away_team"] != team:
+        is_home = int(match["home_club_id"]) == club_id
+        if not is_home and int(match["away_club_id"]) != club_id:
             continue
         scored = int(match["home_goals"] if is_home else match["away_goals"])
         conceded = int(match["away_goals"] if is_home else match["home_goals"])
@@ -93,11 +93,11 @@ def fixture_draw_rates(database) -> tuple[dict[tuple[str, str], float], dict[str
 
 
 def exported_fixtures(database, ranking) -> list[dict[str, object]]:
-    ratings = {row["name"]: Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
+    ratings = {int(row["club_id"]): Rating(row["rating"], row["rd"], row["volatility"]) for row in ranking}
     seasonal_draw_rates, historical_draw_rates = fixture_draw_rates(database)
     rows = database.execute(
-        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.name AS home_team, home.crest_url AS home_crest, home.primary_color AS home_color,
-                  away.name AS away_team, away.crest_url AS away_crest, away.primary_color AS away_color
+        """SELECT f.external_id, f.scheduled_at, f.status, f.competition, f.matchday, f.neutral_site, f.home_advantage, f.venue_country, f.stage, f.group_name, home.id AS home_club_id, home.name AS home_team, home.crest_url AS home_crest, home.primary_color AS home_color,
+                  away.id AS away_club_id, away.name AS away_team, away.crest_url AS away_crest, away.primary_color AS away_color
            FROM fixtures f JOIN clubs home ON home.id=f.home_club_id JOIN clubs away ON away.id=f.away_club_id
            WHERE NOT EXISTS (SELECT 1 FROM matches m WHERE m.external_id=f.external_id)
            ORDER BY f.scheduled_at""",
@@ -105,7 +105,7 @@ def exported_fixtures(database, ranking) -> list[dict[str, object]]:
     fixtures = []
     for row in rows:
         neutral_site = bool(row["neutral_site"]) or is_neutral_event(row["external_id"])
-        home, away = ratings.get(row["home_team"], Rating()), ratings.get(row["away_team"], Rating())
+        home, away = ratings.get(int(row["home_club_id"]), Rating()), ratings.get(int(row["away_club_id"]), Rating())
         home_advantage = 0.0 if neutral_site else float(row["home_advantage"])
         season = str(row["scheduled_at"])[:4]
         draw_rate = seasonal_draw_rates.get(
@@ -169,59 +169,57 @@ def exported_simulation(database, ranking, fixtures: list[dict[str, object]]) ->
     return {"available": any(simulation["available"] for simulation in simulations), "season": season, "competitions": simulations}
 
 
-def current_divisions(database) -> dict[str, set[str]]:
+def current_divisions(database) -> dict[int, set[str]]:
     """Identifica as divisões nacionais disputadas por cada clube na temporada atual."""
     season = str(datetime.now(timezone.utc).year)
     divisions: dict[str, set[str]] = {}
     rows = database.execute(
-        """SELECT competition, team FROM (
-               SELECT m.competition, home.name AS team FROM matches m JOIN clubs home ON home.id=m.home_club_id
+        """SELECT competition, club_id FROM (
+               SELECT m.competition, home.id AS club_id FROM matches m JOIN clubs home ON home.id=m.home_club_id
                 WHERE m.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND m.played_at LIKE ?
                UNION
-               SELECT m.competition, away.name AS team FROM matches m JOIN clubs away ON away.id=m.away_club_id
+               SELECT m.competition, away.id AS club_id FROM matches m JOIN clubs away ON away.id=m.away_club_id
                 WHERE m.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND m.played_at LIKE ?
                UNION
-               SELECT f.competition, home.name AS team FROM fixtures f JOIN clubs home ON home.id=f.home_club_id
+               SELECT f.competition, home.id AS club_id FROM fixtures f JOIN clubs home ON home.id=f.home_club_id
                 WHERE f.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND f.scheduled_at LIKE ?
                UNION
-               SELECT f.competition, away.name AS team FROM fixtures f JOIN clubs away ON away.id=f.away_club_id
+               SELECT f.competition, away.id AS club_id FROM fixtures f JOIN clubs away ON away.id=f.away_club_id
                 WHERE f.competition IN ('Série A', 'Série B', 'Série C', 'Série D') AND f.scheduled_at LIKE ?
            )""",
         (f"{season}%", f"{season}%", f"{season}%", f"{season}%"),
     ).fetchall()
     for row in rows:
-        divisions.setdefault(row["team"], set()).add(row["competition"])
+        divisions.setdefault(int(row["club_id"]), set()).add(row["competition"])
     return divisions
 
 
-def club_countries(database) -> dict[str, str]:
+def club_countries(database) -> dict[int, str]:
     """Completa países a partir das ligas nacionais quando necessário."""
     countries = {
-        row["name"]: row["country"] for row in database.execute(
-            "SELECT name, country FROM clubs WHERE country IS NOT NULL AND country <> ''"
+        int(row["id"]): row["country"] for row in database.execute(
+            "SELECT id, country FROM clubs WHERE country IS NOT NULL AND country <> ''"
         ).fetchall()
     }
     placeholders = ", ".join("?" for _ in DOMESTIC_COMPETITION_COUNTRIES)
     rows = database.execute(
-        f"""SELECT competition, name FROM (
-               SELECT m.competition, home.name AS name FROM matches m JOIN clubs home ON home.id=m.home_club_id WHERE m.competition IN ({placeholders})
-               UNION SELECT m.competition, away.name AS name FROM matches m JOIN clubs away ON away.id=m.away_club_id WHERE m.competition IN ({placeholders})
-               UNION SELECT f.competition, home.name AS name FROM fixtures f JOIN clubs home ON home.id=f.home_club_id WHERE f.competition IN ({placeholders})
-               UNION SELECT f.competition, away.name AS name FROM fixtures f JOIN clubs away ON away.id=f.away_club_id WHERE f.competition IN ({placeholders})
+        f"""SELECT competition, club_id FROM (
+               SELECT m.competition, home.id AS club_id FROM matches m JOIN clubs home ON home.id=m.home_club_id WHERE m.competition IN ({placeholders})
+               UNION SELECT m.competition, away.id AS club_id FROM matches m JOIN clubs away ON away.id=m.away_club_id WHERE m.competition IN ({placeholders})
+               UNION SELECT f.competition, home.id AS club_id FROM fixtures f JOIN clubs home ON home.id=f.home_club_id WHERE f.competition IN ({placeholders})
+               UNION SELECT f.competition, away.id AS club_id FROM fixtures f JOIN clubs away ON away.id=f.away_club_id WHERE f.competition IN ({placeholders})
            )""",
         tuple(DOMESTIC_COMPETITION_COUNTRIES) * 4,
     ).fetchall()
     for row in rows:
-        countries.setdefault(row["name"], DOMESTIC_COMPETITION_COUNTRIES[row["competition"]])
-    for name, country in COUNTRY_OVERRIDES.items():
-        countries.setdefault(name, country)
+        countries.setdefault(int(row["club_id"]), DOMESTIC_COMPETITION_COUNTRIES[row["competition"]])
     return countries
 
 
-def club_states(database) -> dict[str, str]:
+def club_states(database) -> dict[int, str]:
     return {
-        row["name"]: row["state"] for row in database.execute(
-            "SELECT name, state FROM clubs WHERE state IS NOT NULL AND state <> ''"
+        int(row["id"]): row["state"] for row in database.execute(
+            "SELECT id, state FROM clubs WHERE state IS NOT NULL AND state <> ''"
         )
     }
 
@@ -431,16 +429,17 @@ def main() -> None:
     for row in ranking:
         name = row["name"]
         team = {
+            "id": int(row["club_id"]),
             "name": name,
             "crest": public_crest_url(row["crest_url"]),
             "rating": row["rating"],
             "rd": round(row["rd"], 1),
             "last_tracked_at": row["last_tracked_at"],
             "days_without_tracking": row["days_without_tracking"],
-            "performance": team_performance(matches, name),
-            "divisions": sorted(divisions.get(name, set())),
-            "country": countries.get(name, "País não informado"),
-            "state": states.get(name),
+            "performance": team_performance(matches, int(row["club_id"])),
+            "divisions": sorted(divisions.get(int(row["club_id"]), set())),
+            "country": countries.get(int(row["club_id"]), row.get("country") or "País não informado"),
+            "state": states.get(int(row["club_id"])),
         }
         if row["eligible"]:
             team["position"] = len(teams) + 1
@@ -480,4 +479,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
