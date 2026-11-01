@@ -153,16 +153,26 @@ def _migrate_club_identity_schema(database: sqlite3.Connection) -> None:
               crest_url TEXT, country TEXT, state TEXT, primary_color TEXT
             )"""
         )
+        seen_identity_keys: set[str] = set()
+        values = []
+        for row in rows:
+            identity_key = _club_identity_key(str(row["name"]), row["country"])
+            # O banco antigo permitia grafias que agora normalizam para a mesma
+            # chave. Mantemos ambas durante a migração; a reconciliação abaixo
+            # só as une se não houver risco de confundir clubes distintos.
+            if identity_key in seen_identity_keys:
+                identity_key = f"{identity_key}#legacy-{int(row['id'])}"
+            seen_identity_keys.add(identity_key)
+            values.append(
+                (
+                    int(row["id"]), str(row["name"]), identity_key,
+                    row["crest_url"], row["country"], row["state"], row["primary_color"],
+                )
+            )
         database.executemany(
             """INSERT INTO clubs_new(id, name, identity_key, crest_url, country, state, primary_color)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    int(row["id"]), str(row["name"]), _club_identity_key(str(row["name"]), row["country"]),
-                    row["crest_url"], row["country"], row["state"], row["primary_color"],
-                )
-                for row in rows
-            ],
+            values,
         )
         database.execute("DROP TABLE clubs")
         database.execute("ALTER TABLE clubs_new RENAME TO clubs")
