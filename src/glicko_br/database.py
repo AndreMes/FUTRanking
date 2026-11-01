@@ -106,8 +106,11 @@ def initialise(database: sqlite3.Connection) -> None:
     _infer_historical_club_states(database)
     provider_merges, provider_duplicates = reconcile_provider_identities(database)
     reconcile_club_identities(database)
+    inferred_merges = reconcile_unattributed_clubs(database)
     if provider_merges or provider_duplicates:
         print(f"[identidade] {provider_merges} clubes conciliados entre fontes; {provider_duplicates} partidas duplicadas removidas.")
+    if inferred_merges:
+        print(f"[identidade] {inferred_merges} identidades históricas sem país vinculadas ao clube confirmado.")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
 
@@ -435,6 +438,43 @@ def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
     for row in database.execute("SELECT id, name, country FROM clubs"):
         _register_alias(database, str(row["name"]), row["country"], int(row["id"]))
     return merged, _remove_duplicate_matches(database)
+
+
+def reconcile_unattributed_clubs(database: sqlite3.Connection) -> int:
+    """Conecta legado sem país a uma única identidade nacional confirmada.
+
+    Competições continentais antigas às vezes chegavam sem país de clube. Após
+    uma liga doméstica informar essa identidade, a duplicata só é unida quando
+    há exatamente um candidato com o mesmo nome normalizado e a mesma grafia
+    publicada (ou o mesmo escudo). Assim Liverpool legado não fica ao lado
+    do Liverpool inglês, sem aplicar heurística a nomes apenas parecidos.
+    """
+    rows = database.execute(
+        "SELECT id, name, country, crest_url FROM clubs ORDER BY id"
+    ).fetchall()
+    by_key: dict[str, list[sqlite3.Row]] = defaultdict(list)
+    for row in rows:
+        by_key[alias_key(str(row["name"]))].append(row)
+    candidates: list[tuple[int, int]] = []
+    for group in by_key.values():
+        unknown = [row for row in group if not _country_key(row["country"])]
+        known = [row for row in group if _country_key(row["country"])]
+        if len(unknown) != 1 or len(known) != 1:
+            continue
+        source, target = unknown[0], known[0]
+        same_name = alias_key(str(source["name"])) == alias_key(str(target["name"]))
+        same_crest = bool(source["crest_url"] and source["crest_url"] == target["crest_url"])
+        if same_name or same_crest:
+            candidates.append((int(source["id"]), int(target["id"])))
+    viable = [pair for pair in candidates if _can_merge_club(database, *pair)]
+    if not viable:
+        return 0
+    _clear_rating_rebuild_state(database)
+    merged = 0
+    for source_id, target_id in viable:
+        if _merge_club(database, source_id, target_id):
+            merged += 1
+    return merged
 
 
 def identity_candidates(database: sqlite3.Connection) -> list[dict[str, object]]:
