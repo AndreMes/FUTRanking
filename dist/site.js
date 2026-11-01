@@ -12,9 +12,10 @@ const time = v => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paul
 const matchTime = v => v.includes('T') ? time(v) : date(v);
 const crestInitials = name => String(name || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 const crest = (url, name) => url ? `<img class="crest" src="${url}" alt="Brasão do ${name}" loading="lazy" referrerpolicy="no-referrer">` : `<span class="crest crest-fallback" role="img" aria-label="Identificador de ${name}">${crestInitials(name)}</span>`;
-const club = (name, url, link = false, newTab = false) => {
+const club = (name, url, link = false, newTab = false, clubId = null) => {
   const content = `${crest(url, name)}${name}`;
-  return link ? `<a class="club club-link" href="clube.html?time=${encodeURIComponent(name)}"${newTab ? ' target="_blank" rel="noopener"' : ''}>${content}</a>` : `<span class="club">${content}</span>`;
+  const target = clubId == null ? `time=${encodeURIComponent(name)}` : `id=${encodeURIComponent(clubId)}`;
+  return link ? `<a class="club club-link" href="clube.html?${target}"${newTab ? ' target="_blank" rel="noopener"' : ''}>${content}</a>` : `<span class="club">${content}</span>`;
 };
 const countryLabel = country => String(country || '').replace(/^[A-Z]{2}\s+/, '').trim() || 'País não informado';
 const countryCode = country => ({ Argentina: 'ar', Bolívia: 'bo', Bolivia: 'bo', Brasil: 'br', Brazil: 'br', Chile: 'cl', Colômbia: 'co', Colombia: 'co', Equador: 'ec', Ecuador: 'ec', Paraguai: 'py', Paraguay: 'py', Peru: 'pe', Perú: 'pe', Uruguai: 'uy', Uruguay: 'uy', Venezuela: 've', Inglaterra: 'gb', England: 'gb', Espanha: 'es', Spain: 'es', Itália: 'it', Italia: 'it', Italy: 'it', Alemanha: 'de', Germany: 'de', França: 'fr', Franca: 'fr', France: 'fr' }[countryLabel(country)] || (String(country || '').match(/^([A-Z]{2})\b/) || [])[1]?.toLowerCase());
@@ -88,7 +89,7 @@ function game(m, fixture = false) {
   const score = fixture ? (pending ? `<span class="score forecast">${pending}</span>` : oneXTwo) : `<span class="score">${m.home_goals}–${m.away_goals}</span>`;
   const homeMeta = fixture ? `Rating ${Math.round(m.home_rating)}` : `Rating ${m.home_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.home_rating_effect)}`;
   const awayMeta = fixture ? `Rating ${Math.round(m.away_rating)}` : `Rating ${m.away_rating_after?.toFixed(1) ?? '—'} · impacto ${impact(m.away_rating_effect)}`;
-  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest, true)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest, true)}<small class="rating">${awayMeta}</small></span></article>`;
+  return `<article class="row"><span class="date">${fixture ? time(m.scheduled_at) : matchTime(m.played_at)}<small class="competition">${matchContext(m)}</small></span><span class="home">${club(m.home_team, m.home_crest, true, false, m.home_club_id)}<small class="rating">${homeMeta}</small></span>${score}<span class="away">${club(m.away_team, m.away_crest, true, false, m.away_club_id)}<small class="rating">${awayMeta}</small></span></article>`;
 }
 
 const searchableText = m => [m.home_team, m.away_team, m.competition, m.matchday && `rodada ${m.matchday}`, stageName(m.stage), m.group_name, m.played_at, m.scheduled_at].filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -115,23 +116,23 @@ function mountPagedList(host, games, renderGame, options = {}) {
   render();
 }
 
-function teamRatingHistory(matches, team) {
-  return matches.filter(m => m.home_team === team || m.away_team === team).map(m => ({
+function teamRatingHistory(matches, teamId) {
+  return matches.filter(m => Number(m.home_club_id) === Number(teamId) || Number(m.away_club_id) === Number(teamId)).map(m => ({
     at: m.played_at,
-    rating: m.home_team === team ? m.home_rating_after : m.away_rating_after,
+    rating: Number(m.home_club_id) === Number(teamId) ? m.home_rating_after : m.away_rating_after,
   })).filter(point => Number.isFinite(point.rating)).sort((a, b) => new Date(a.at) - new Date(b.at));
 }
 
-function teamPositionHistory(matches, team) {
+function teamPositionHistory(matches, teamId) {
   const ordered = [...matches].filter(match => Number.isFinite(match.home_rating_after) && Number.isFinite(match.away_rating_after)).sort((a, b) => new Date(a.played_at) - new Date(b.played_at));
   const ratings = new Map(), history = [];
   for (let index = 0; index < ordered.length;) {
     const at = ordered[index].played_at, group = [];
     while (index < ordered.length && ordered[index].played_at === at) group.push(ordered[index++]);
-    group.forEach(match => { ratings.set(match.home_team, match.home_rating_after); ratings.set(match.away_team, match.away_rating_after); });
-    if (group.some(match => match.home_team === team || match.away_team === team)) {
-      const ranking = [...ratings.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'));
-      history.push({ at, position: ranking.findIndex(([name]) => name === team) + 1 });
+    group.forEach(match => { ratings.set(match.home_club_id, match.home_rating_after); ratings.set(match.away_club_id, match.away_rating_after); });
+    if (group.some(match => Number(match.home_club_id) === Number(teamId) || Number(match.away_club_id) === Number(teamId))) {
+      const ranking = [...ratings.entries()].sort((a, b) => b[1] - a[1] || Number(a[0]) - Number(b[0]));
+      history.push({ at, position: ranking.findIndex(([id]) => Number(id) === Number(teamId)) + 1 });
     }
   }
   return history;
@@ -254,11 +255,11 @@ function comparisonExpected(home, away, homeAdvantage = 0) {
 }
 
 function headToHead(matches, teamA, teamB) {
-  const games = matches.filter(match => (match.home_team === teamA && match.away_team === teamB) || (match.home_team === teamB && match.away_team === teamA));
+  const games = matches.filter(match => (Number(match.home_club_id) === Number(teamA) && Number(match.away_club_id) === Number(teamB)) || (Number(match.home_club_id) === Number(teamB) && Number(match.away_club_id) === Number(teamA)));
   const totals = { games: games.length, aWins: 0, draws: 0, bWins: 0 };
   games.forEach(match => {
-    const aGoals = match.home_team === teamA ? Number(match.home_goals) : Number(match.away_goals);
-    const bGoals = match.home_team === teamB ? Number(match.home_goals) : Number(match.away_goals);
+    const aGoals = Number(match.home_club_id) === Number(teamA) ? Number(match.home_goals) : Number(match.away_goals);
+    const bGoals = Number(match.home_club_id) === Number(teamB) ? Number(match.home_goals) : Number(match.away_goals);
     if (aGoals === bGoals) totals.draws += 1;
     else if (aGoals > bGoals) totals.aWins += 1;
     else totals.bWins += 1;
@@ -313,22 +314,24 @@ function comparisons(data) {
   if (teams.length < 2) { el('#content').innerHTML = '<section class="panel simulation-unavailable"><p>A comparação ficará disponível quando houver ao menos dois clubes no ranking.</p></section>'; return; }
   const rankedTeams = [...data.teams].sort((a, b) => Number(a.position) - Number(b.position));
   const defaultA = rankedTeams[0] || teams[0], defaultB = rankedTeams[1] || teams[1];
-  const options = teams.map(team => `<option value="${team.name}"></option>`).join('');
-  el('#content').innerHTML = `<p>Compare a força estimada de dois clubes e veja como o mando altera um confronto hipotético. Comece a digitar: a lista se restringe aos nomes mais próximos. O histórico usa o rating registrado após cada partida rastreada.</p><div class="compare-tools"><label>Clube A<input type="search" list="teams-a" data-team="a" value="${defaultA.name}" placeholder="Digite o nome do clube" autocomplete="off"><datalist id="teams-a">${options}</datalist></label><label>Clube B<input type="search" list="teams-b" data-team="b" value="${defaultB.name}" placeholder="Digite o nome do clube" autocomplete="off"><datalist id="teams-b">${options}</datalist></label></div><div class="compare-host"></div>`;
+  const duplicateNames = new Set(teams.filter(team => teams.filter(other => other.name === team.name).length > 1).map(team => team.name));
+  const choice = team => duplicateNames.has(team.name) ? `${team.name} — ${countryLabel(team.country)}` : team.name;
+  const options = teams.map(team => `<option value="${choice(team)}"></option>`).join('');
+  el('#content').innerHTML = `<p>Compare a força estimada de dois clubes e veja como o mando altera um confronto hipotético. Quando houver homônimos, a sugestão mostra o país. O histórico usa o ID estável registrado após cada partida rastreada.</p><div class="compare-tools"><label>Clube A<input type="search" list="teams-a" data-team="a" value="${choice(defaultA)}" placeholder="Digite o nome do clube" autocomplete="off"><datalist id="teams-a">${options}</datalist></label><label>Clube B<input type="search" list="teams-b" data-team="b" value="${choice(defaultB)}" placeholder="Digite o nome do clube" autocomplete="off"><datalist id="teams-b">${options}</datalist></label></div><div class="compare-host"></div>`;
   const selectA = el('[data-team="a"]'), selectB = el('[data-team="b"]'), host = el('.compare-host');
   const render = () => {
-    const a = teams.find(team => team.name === selectA.value), b = teams.find(team => team.name === selectB.value);
+    const a = teams.find(team => choice(team) === selectA.value), b = teams.find(team => choice(team) === selectB.value);
     if (!a || !b) { host.innerHTML = '<section class="panel simulation-unavailable"><p>Selecione um clube da lista em cada campo para iniciar a comparação.</p></section>'; return; }
-    if (a.name === b.name) { host.innerHTML = '<section class="panel simulation-unavailable"><p>Escolha dois clubes diferentes para comparar.</p></section>'; return; }
-    const historyA = teamRatingHistory(data.matches, a.name), historyB = teamRatingHistory(data.matches, b.name);
-    const h2h = headToHead(data.matches, a.name, b.name);
-    host.innerHTML = `<section class="compare-card"><div class="compare-teams"><article class="compare-team">${club(a.name, a.crest, true, true)}<strong>${Math.round(a.rating)}</strong><small>rating · RD ${Number(a.rd).toFixed(1)}</small></article><div class="compare-vs">vs</div><article class="compare-team">${club(b.name, b.crest, true, true)}<strong>${Math.round(b.rating)}</strong><small>rating · RD ${Number(b.rd).toFixed(1)}</small></article></div><div class="matchup"><div><h2>Confronto hipotético</h2><p>Favoritismo Glicko-2, sem odds e sem previsão de placar.</p></div><label class="venue-control">Mando<select data-venue><option value="a">${a.name} mandante</option><option value="neutral">Campo neutro</option><option value="b">${b.name} mandante</option></select></label><strong class="matchup-probability"></strong></div></section><section class="head-to-head"><div><h2>Confrontos diretos</h2><p>${h2h.games ? `${h2h.games} partidas rastreadas entre os dois clubes.` : 'Ainda não há confronto direto rastreado entre os dois clubes.'}</p></div><div class="h2h-stats"><span><strong>${h2h.aWins}</strong>${a.name} venceu</span><span><strong>${h2h.draws}</strong>empates</span><span><strong>${h2h.bWins}</strong>${b.name} venceu</span></div></section><section class="compare-chart"><h2>Histórico de rating</h2><p>As duas trajetórias usam a mesma escala vertical. Passe o cursor ou toque no gráfico para ver os dois valores.</p><div class="compare-history-host"></div></section>`;
+    if (Number(a.id) === Number(b.id)) { host.innerHTML = '<section class="panel simulation-unavailable"><p>Escolha dois clubes diferentes para comparar.</p></section>'; return; }
+    const historyA = teamRatingHistory(data.matches, a.id), historyB = teamRatingHistory(data.matches, b.id);
+    const h2h = headToHead(data.matches, a.id, b.id);
+    host.innerHTML = `<section class="compare-card"><div class="compare-teams"><article class="compare-team">${club(choice(a), a.crest, true, true, a.id)}<strong>${Math.round(a.rating)}</strong><small>rating · RD ${Number(a.rd).toFixed(1)}</small></article><div class="compare-vs">vs</div><article class="compare-team">${club(choice(b), b.crest, true, true, b.id)}<strong>${Math.round(b.rating)}</strong><small>rating · RD ${Number(b.rd).toFixed(1)}</small></article></div><div class="matchup"><div><h2>Confronto hipotético</h2><p>Favoritismo Glicko-2, sem odds e sem previsão de placar.</p></div><label class="venue-control">Mando<select data-venue><option value="a">${choice(a)} mandante</option><option value="neutral">Campo neutro</option><option value="b">${choice(b)} mandante</option></select></label><strong class="matchup-probability"></strong></div></section><section class="head-to-head"><div><h2>Confrontos diretos</h2><p>${h2h.games ? `${h2h.games} partidas rastreadas entre os dois clubes.` : 'Ainda não há confronto direto rastreado entre os dois clubes.'}</p></div><div class="h2h-stats"><span><strong>${h2h.aWins}</strong>${choice(a)} venceu</span><span><strong>${h2h.draws}</strong>empates</span><span><strong>${h2h.bWins}</strong>${choice(b)} venceu</span></div></section><section class="compare-chart"><h2>Histórico de rating</h2><p>As duas trajetórias usam a mesma escala vertical. Passe o cursor ou toque no gráfico para ver os dois valores.</p><div class="compare-history-host"></div></section>`;
     const venue = host.querySelector('[data-venue]'), probability = host.querySelector('.matchup-probability');
     const updateProbability = () => { const chanceA = venue.value === 'a' ? comparisonExpected(a, b, 80) : venue.value === 'b' ? 1 - comparisonExpected(b, a, 80) : comparisonExpected(a, b); probability.textContent = `${a.name} ${Math.round(chanceA * 100)}% · ${b.name} ${Math.round((1 - chanceA) * 100)}%`; };
     venue.addEventListener('change', updateProbability); updateProbability();
-    mountComparisonChart(host.querySelector('.compare-history-host'), historyA, historyB, a.name, b.name);
+    mountComparisonChart(host.querySelector('.compare-history-host'), historyA, historyB, choice(a), choice(b));
   };
-  [selectA, selectB].forEach(input => { input.addEventListener('input', () => { if (teams.some(team => team.name === input.value)) render(); }); input.addEventListener('change', render); }); render();
+  [selectA, selectB].forEach(input => { input.addEventListener('input', () => { if (teams.some(team => choice(team) === input.value)) render(); }); input.addEventListener('change', render); }); render();
 }
 
 const html = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
@@ -810,7 +813,7 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
       const pages = Math.max(1, Math.ceil(teams.length / rankingPageSize));
       rankingPage = Math.min(rankingPage, pages);
       const start = (rankingPage - 1) * rankingPageSize, visible = teams.slice(start, start + rankingPageSize);
-      panel.innerHTML = `<div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${visible.map((team, index) => `<a class="row rank" href="clube.html?time=${encodeURIComponent(team.name)}"><span>${start + index + 1}º</span><b>${club(team.name, team.crest)}</b><strong>${Math.round(team.rating)}</strong></a>`).join('') || '<p class="empty-list">Não há clubes elegíveis neste filtro.</p>'}${teams.length > rankingPageSize ? `<div class="pager"><span>${start + 1}–${Math.min(start + rankingPageSize, teams.length)} de ${teams.length}</span><div class="pager-actions"><button type="button" data-ranking-page="previous" ${rankingPage === 1 ? 'disabled' : ''}>Anterior</button><button type="button" data-ranking-page="next" ${rankingPage === pages ? 'disabled' : ''}>Próximos</button></div></div>` : ''}`;
+      panel.innerHTML = `<div class="row rank table-head"><span>Pos.</span><span>Clube</span><span>Rating</span></div>${visible.map((team, index) => `<a class="row rank" href="clube.html?id=${encodeURIComponent(team.id)}"><span>${start + index + 1}º</span><b>${club(team.name, team.crest)}</b><strong>${Math.round(team.rating)}</strong></a>`).join('') || '<p class="empty-list">Não há clubes elegíveis neste filtro.</p>'}${teams.length > rankingPageSize ? `<div class="pager"><span>${start + 1}–${Math.min(start + rankingPageSize, teams.length)} de ${teams.length}</span><div class="pager-actions"><button type="button" data-ranking-page="previous" ${rankingPage === 1 ? 'disabled' : ''}>Anterior</button><button type="button" data-ranking-page="next" ${rankingPage === pages ? 'disabled' : ''}>Próximos</button></div></div>` : ''}`;
       panel.querySelector('[data-ranking-page="previous"]')?.addEventListener('click', () => { rankingPage -= 1; renderRanking(); });
       panel.querySelector('[data-ranking-page="next"]')?.addEventListener('click', () => { rankingPage += 1; renderRanking(); });
       buttons.forEach(button => button.classList.toggle('active', button.dataset.division === selectedDivision));
@@ -833,10 +836,10 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
     polymarketOdds(data);
   }
   if (page === 'club') {
-    const name = q.get('time'), team = [...data.teams, ...(data.excluded_teams || [])].find(t => t.name === name);
+    const requestedId = q.get('id'), name = q.get('time'), team = [...data.teams, ...(data.excluded_teams || [])].find(t => requestedId ? Number(t.id) === Number(requestedId) : t.name === name);
     if (!team) { document.body.innerHTML = shell('Clube não encontrado'); return; }
-    const fixtures = data.fixtures.filter(m => m.home_team === name || m.away_team === name), p = team.performance;
-    document.body.innerHTML = shell(club(name, team.crest), 'Perfil do clube');
+    const fixtures = data.fixtures.filter(m => Number(m.home_club_id) === Number(team.id) || Number(m.away_club_id) === Number(team.id)), p = team.performance;
+    document.body.innerHTML = shell(club(team.name, team.crest), 'Perfil do clube');
     const confidence = ratingConfidence(Number(team.rd));
     const country = team.country || 'País não informado';
     const stateTag = countryLabel(country) === 'Brasil' && team.state ? `<span>${team.state}</span>` : '';
@@ -846,8 +849,8 @@ fetch(freshDataUrl).then(r => r.json()).then(data => {
     mountPagedList(el('.fixtures-host'), fixtures, m => game(m, true), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum fixture futuro disponível.' });
     el('.results-host').innerHTML = '<p aria-live="polite">Carregando resultados do clube…</p>';
     loadHistory().then(history => {
-      const matches = history.matches.filter(m => m.home_team === name || m.away_team === name);
-      mountRatingChart(el('.chart-host'), matches, name);
+      const matches = history.matches.filter(m => Number(m.home_club_id) === Number(team.id) || Number(m.away_club_id) === Number(team.id));
+      mountRatingChart(el('.chart-host'), matches, team.id);
       mountPagedList(el('.results-host'), matches, m => game(m), { search: true, competitionFilter: true, placeholder: 'Buscar competição, rodada ou fase', pageSize: 10, emptyText: 'Nenhum resultado rastreado disponível.' });
     }).catch(() => {
       el('.chart-host').innerHTML = '<p class="empty-list">Não foi possível carregar o histórico do clube agora.</p>';
