@@ -39,6 +39,11 @@ CREATE TABLE IF NOT EXISTS club_aliases (
   alias_key TEXT NOT NULL, country_key TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
   PRIMARY KEY(alias_key, country_key)
 );
+CREATE TABLE IF NOT EXISTS club_provider_ids (
+  provider TEXT NOT NULL, provider_team_id TEXT NOT NULL,
+  club_id INTEGER NOT NULL REFERENCES clubs(id),
+  PRIMARY KEY(provider, provider_team_id)
+);
 CREATE TABLE IF NOT EXISTS matches {MATCHES_TABLE[MATCHES_TABLE.index('('):]}
 CREATE TABLE IF NOT EXISTS rating_snapshots (
   period_date TEXT NOT NULL, club_id INTEGER NOT NULL REFERENCES clubs(id),
@@ -106,18 +111,16 @@ def initialise(database: sqlite3.Connection) -> None:
     _infer_historical_club_states(database)
     provider_merges, provider_duplicates = reconcile_provider_identities(database)
     reconcile_club_identities(database)
-    inferred_merges = reconcile_unattributed_clubs(database)
     if provider_merges or provider_duplicates:
         print(f"[identidade] {provider_merges} clubes conciliados entre fontes; {provider_duplicates} partidas duplicadas removidas.")
-    if inferred_merges:
-        print(f"[identidade] {inferred_merges} identidades históricas sem país vinculadas ao clube confirmado.")
     database.execute("DELETE FROM fixtures WHERE external_id IN (SELECT external_id FROM matches)")
     database.commit()
+
 
 def _club_identity_key(name: str, country: str | None) -> str:
     """Chave estável de clube: a mesma razão social pode existir em países distintos.
 
-    O nome continua sendo o texto de apresentação. A chave é usada somente
+    ``name`` continua sendo o texto de apresentação. A chave é usada somente
     internamente e nunca reduz um homônimo internacional a uma única entidade.
     """
     country_key = _country_key(country) or "??"
@@ -125,7 +128,7 @@ def _club_identity_key(name: str, country: str | None) -> str:
 
 
 def _migrate_club_identity_schema(database: sqlite3.Connection) -> None:
-    """Troca o antigo UNIQUE(name) por uma identidade país+nome.
+    """Troca o antigo ``UNIQUE(name)`` por uma identidade país+nome.
 
     A migração preserva IDs e todas as referências já existentes em partidas,
     snapshots e aliases. É necessária para que, por exemplo, clubes europeus
@@ -136,7 +139,7 @@ def _migrate_club_identity_schema(database: sqlite3.Connection) -> None:
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='clubs'"
     ).fetchone()
     schema = str(schema_row["sql"] or "") if schema_row else ""
-    needs_rebuild = "identity_key" not in columns or "name TEXT NOT NULL UNIQUE" in schema.replace("\\n", " ")
+    needs_rebuild = "identity_key" not in columns or "name TEXT NOT NULL UNIQUE" in schema.replace("\n", " ")
     if not needs_rebuild:
         for row in database.execute("SELECT id, name, country, identity_key FROM clubs WHERE identity_key IS NULL OR identity_key='' "):
             database.execute(
@@ -181,6 +184,7 @@ def _migrate_club_identity_schema(database: sqlite3.Connection) -> None:
         database.execute("ALTER TABLE clubs_new RENAME TO clubs")
     finally:
         database.execute("PRAGMA foreign_keys = ON")
+
 
 def _migrate_matches_competition_check(database: sqlite3.Connection) -> None:
     """Amplia o catálogo sem descartar o histórico já persistido.
@@ -230,14 +234,22 @@ def register_club_alias(database: sqlite3.Connection, alias: str, country: str |
     _register_alias(database, alias, country, club_id)
 
 
-def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None, state: str | None = None) -> int:
+def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = None, country: str | None = None, state: str | None = None, provider: str | None = None, provider_team_id: str | None = None) -> int:
     country_key = _country_key(country)
     key = alias_key(name)
+    provider_identity = None
+    if provider and provider_team_id:
+        provider_identity = database.execute(
+            "SELECT club_id FROM club_provider_ids WHERE provider=? AND provider_team_id=?",
+            (provider, provider_team_id),
+        ).fetchone()
     alias = database.execute(
         "SELECT club_id FROM club_aliases WHERE alias_key=? AND country_key=?", (key, country_key or "")
     ).fetchone()
     target_name = canonical_name(name, country_key)
-    if alias:
+    if provider_identity:
+        club_id = int(provider_identity["club_id"])
+    elif alias:
         club_id = int(alias["club_id"])
     else:
         identity_key = _club_identity_key(target_name, country)
@@ -249,6 +261,11 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
             club_id = int(database.execute("SELECT last_insert_rowid()").fetchone()[0])
         _register_alias(database, target_name, country, club_id)
         _register_alias(database, name, country, club_id)
+    if provider and provider_team_id:
+        database.execute(
+            "INSERT OR IGNORE INTO club_provider_ids(provider, provider_team_id, club_id) VALUES (?, ?, ?)",
+            (provider, provider_team_id, club_id),
+        )
     if crest_url:
         database.execute("UPDATE clubs SET crest_url=? WHERE id=?", (crest_url, club_id))
     if country:
@@ -336,6 +353,12 @@ def _merge_club(database: sqlite3.Connection, source_id: int, target_id: int) ->
     database.execute("UPDATE fixtures SET home_club_id=? WHERE home_club_id=?", (target_id, source_id))
     database.execute("UPDATE fixtures SET away_club_id=? WHERE away_club_id=?", (target_id, source_id))
     database.execute("UPDATE club_aliases SET club_id=? WHERE club_id=?", (target_id, source_id))
+    database.execute(
+        "DELETE FROM club_provider_ids WHERE club_id=? AND (provider, provider_team_id) IN "
+        "(SELECT provider, provider_team_id FROM club_provider_ids WHERE club_id=?)",
+        (source_id, target_id),
+    )
+    database.execute("UPDATE club_provider_ids SET club_id=? WHERE club_id=?", (target_id, source_id))
     database.execute("DELETE FROM clubs WHERE id=?", (source_id,))
     return True
 
@@ -440,43 +463,6 @@ def reconcile_club_identities(database: sqlite3.Connection) -> tuple[int, int]:
     return merged, _remove_duplicate_matches(database)
 
 
-def reconcile_unattributed_clubs(database: sqlite3.Connection) -> int:
-    """Conecta legado sem país a uma única identidade nacional confirmada.
-
-    Competições continentais antigas às vezes chegavam sem país de clube. Após
-    uma liga doméstica informar essa identidade, a duplicata só é unida quando
-    há exatamente um candidato com o mesmo nome normalizado e a mesma grafia
-    publicada (ou o mesmo escudo). Assim Liverpool legado não fica ao lado
-    do Liverpool inglês, sem aplicar heurística a nomes apenas parecidos.
-    """
-    rows = database.execute(
-        "SELECT id, name, country, crest_url FROM clubs ORDER BY id"
-    ).fetchall()
-    by_key: dict[str, list[sqlite3.Row]] = defaultdict(list)
-    for row in rows:
-        by_key[alias_key(str(row["name"]))].append(row)
-    candidates: list[tuple[int, int]] = []
-    for group in by_key.values():
-        unknown = [row for row in group if not _country_key(row["country"])]
-        known = [row for row in group if _country_key(row["country"])]
-        if len(unknown) != 1 or len(known) != 1:
-            continue
-        source, target = unknown[0], known[0]
-        same_name = alias_key(str(source["name"])) == alias_key(str(target["name"]))
-        same_crest = bool(source["crest_url"] and source["crest_url"] == target["crest_url"])
-        if same_name or same_crest:
-            candidates.append((int(source["id"]), int(target["id"])))
-    viable = [pair for pair in candidates if _can_merge_club(database, *pair)]
-    if not viable:
-        return 0
-    _clear_rating_rebuild_state(database)
-    merged = 0
-    for source_id, target_id in viable:
-        if _merge_club(database, source_id, target_id):
-            merged += 1
-    return merged
-
-
 def identity_candidates(database: sqlite3.Connection) -> list[dict[str, object]]:
     """Lista nomes parecidos para revisão humana; nunca faz fusão automática."""
     suffixes = {"ac", "ad", "aa", "ca", "cr", "ec", "fc", "sc", "se", "clube", "esporte", "esportes", "futebol"}
@@ -515,8 +501,8 @@ def store_match(database: sqlite3.Connection, match: dict[str, str]) -> bool:
     played_at = match["played_at"]
     datetime.fromisoformat(played_at.replace("Z", "+00:00"))
     inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(competition)
-    home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"), match.get("home_state") or inferred_state)
-    away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"), match.get("away_state") or inferred_state)
+    home = _club_id(database, match["home_team"], match.get("home_crest"), match.get("home_country"), match.get("home_state") or inferred_state, match.get("provider"), match.get("home_provider_team_id"))
+    away = _club_id(database, match["away_team"], match.get("away_crest"), match.get("away_country"), match.get("away_state") or inferred_state, match.get("provider"), match.get("away_provider_team_id"))
     if home == away:
         # A fonte pode nomear os lados de modo distinto, mas uma regra de
         # alias pode identificar ambos como o mesmo clube. Nunca registramos
@@ -564,8 +550,8 @@ def replace_fixtures(database: sqlite3.Connection, fixtures: list[dict[str, str]
         database.execute("DELETE FROM fixtures WHERE competition='Série A'")
     for fixture in fixtures:
         inferred_state = BRAZILIAN_STATE_BY_COMPETITION.get(fixture["competition"])
-        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"), fixture.get("home_state") or inferred_state)
-        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"), fixture.get("away_state") or inferred_state)
+        home = _club_id(database, fixture["home_team"], fixture.get("home_crest"), fixture.get("home_country"), fixture.get("home_state") or inferred_state, fixture.get("provider"), fixture.get("home_provider_team_id"))
+        away = _club_id(database, fixture["away_team"], fixture.get("away_crest"), fixture.get("away_country"), fixture.get("away_state") or inferred_state, fixture.get("provider"), fixture.get("away_provider_team_id"))
         if home == away:
             print(
                 f"[identidade] fixture ignorado: {fixture['external_id']} "
@@ -759,4 +745,3 @@ def latest_ranking(database: sqlite3.Connection, as_of: str | None = None) -> li
                         "volatility": adjusted.volatility, "period_date": reference, "last_tracked_at": row["updated_at"],
                         "days_without_tracking": days_without_tracking, "eligible": not reasons, "ineligibility_reasons": reasons})
     return sorted(ranking, key=lambda row: (-row["rating"], row["rd"], row["name"]))
-
