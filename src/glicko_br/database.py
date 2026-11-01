@@ -18,7 +18,7 @@ GOAL_MARGIN_WEIGHT_COEFFICIENT = 0.5
 MAX_GOAL_MARGIN_WEIGHT = 1.8
 # Inclui os pesos de escopo na versão: qualquer alteração nesses coeficientes
 # exige reprocessar cronologicamente todas as partidas já persistidas.
-RATING_MODEL_VERSION = "glicko2-home80-goal-margin-knockout-scope-v7-c1.50-w2.00"
+RATING_MODEL_VERSION = "glicko2-home80-goal-margin-knockout-scope-v8-c1.50-w3.00"
 MAX_INACTIVITY_DAYS = 90
 MAX_RANKING_RD = 120.0
 
