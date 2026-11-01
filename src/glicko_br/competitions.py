@@ -176,7 +176,7 @@ COMPETITION_NAMES = frozenset(competition.name for competition in ESPN_COMPETITI
 COMPETITION_SCOPE_WEIGHTS = {
     "domestic": 1.00,
     "continental": 1.50,
-    "world": 2.00,
+    "world": 3.00,
 }
 CONTINENTAL_COMPETITION_NAMES = frozenset(
     competition.name for competition in ESPN_COMPETITIONS if competition.scope == "continental"
@@ -200,7 +200,7 @@ def competition_scope_weight(competition: str) -> float:
     return COMPETITION_SCOPE_WEIGHTS[competition_scope(competition)]
 
 
-COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.50-world-2.00-copa-brasil-continental"
+COMPETITION_SCOPE_VERSION = "scope-domestic-1.00-continental-1.50-world-3.00-copa-brasil-continental"
 COMPETITION_CATALOG_VERSION = "|".join(
     f"{competition.espn_slug}:{competition.name}:{competition.scope}:{competition.start_year}" for competition in ESPN_COMPETITIONS
 ) + f"|{COMPETITION_SCOPE_VERSION}"
