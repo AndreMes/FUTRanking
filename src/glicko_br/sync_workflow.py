@@ -16,7 +16,7 @@ ESPN_BOOTSTRAP_VERSION = f"espn-{HISTORY_START_YEAR}-{COMPETITION_CATALOG_VERSIO
 # A primeira expansão internacional revelou que o antigo identificador global
 # por nome confundia homônimos de países diferentes (por exemplo Liverpool).
 # Esta marca dispara uma única reconstrução com IDs estáveis do provedor.
-IDENTITY_REBUILD_VERSION = "country-scoped-provider-identity-v2-no-cross-provider-merges"
+IDENTITY_REBUILD_VERSION = "country-scoped-provider-identity-v3-state-safe-brazilian-homonyms"
 # Catálogo que já estava coberto antes da expansão europeia. Ao migrar o
 # marcador, ele evita baixar novamente dezenas de milhares de partidas que já
 # vivem no banco persistente.
