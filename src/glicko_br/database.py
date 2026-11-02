@@ -260,10 +260,14 @@ def _club_id(database: sqlite3.Connection, name: str, crest_url: str | None = No
                     (provider, provider_team_id),
                 )
                 provider_identity = None
-    alias = database.execute(
+    target_name = canonical_name(name, country_key, state)
+    # Um alias estadual explícito (como Santos FC no Amapá) não pode cair no
+    # alias nacional homônimo antes de termos a chance de criar sua identidade
+    # própria. Para os demais casos, preservamos a conciliação já revisada.
+    generic_name = canonical_name(name, country_key)
+    alias = None if target_name != generic_name else database.execute(
         "SELECT club_id FROM club_aliases WHERE alias_key=? AND country_key=?", (key, country_key or "")
     ).fetchone()
-    target_name = canonical_name(name, country_key)
     if provider_identity:
         club_id = int(provider_identity["club_id"])
     elif alias:
