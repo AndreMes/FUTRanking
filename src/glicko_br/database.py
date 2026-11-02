@@ -305,6 +305,9 @@ COUNTRY_KEYS = {
     "suica": "CH", "suíça": "CH", "switzerland": "CH", "austria": "AT", "áustria": "AT",
     "dinamarca": "DK", "denmark": "DK", "grecia": "GR", "grécia": "GR", "greece": "GR",
     "tchequia": "CZ", "tchéquia": "CZ", "czechia": "CZ", "czech republic": "CZ",
+    "mexico": "MX", "méxico": "MX", "estados unidos": "US", "united states": "US", "usa": "US",
+    "japao": "JP", "japão": "JP", "japan": "JP", "arabia saudita": "SA", "arábia saudita": "SA",
+    "saudi arabia": "SA", "russia": "RU", "rússia": "RU",
 }
 
 
