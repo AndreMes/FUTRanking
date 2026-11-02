@@ -91,6 +91,15 @@ BRAZILIAN_ALIASES = {
     "ec xv de novembro de piracicaba": "XV de Piracicaba",
 }
 
+# Em estaduais, a UF da competição é uma evidência de identidade mais forte
+# do que a abreviação comercial. Santos-AP jamais pode herdar o alias
+# ``Santos FC → Santos`` usado pelo clube paulista.
+BRAZILIAN_STATE_ALIASES = {
+    ("AP", "santos"): "Santos FC (AP)",
+    ("AP", "santos fc"): "Santos FC (AP)",
+    ("AP", "santos ap"): "Santos FC (AP)",
+}
+
 # Pares revisados que não podem ser conciliados pela semelhança de nomes nem
 # pela checagem entre provedores. As chaves passam pela mesma normalização de
 # acentos da importação.
@@ -99,6 +108,7 @@ BRAZILIAN_SEPARATE_PAIRS = frozenset({
     frozenset(("nautico", "nautico fc")),
     # São clubes gaúchos diferentes: houve confronto direto entre ambos em 2026.
     frozenset(("ec internacional", "internacional")),
+    frozenset(("santos", "santos fc ap")),
 })
 
 
@@ -106,9 +116,11 @@ def must_remain_separate(first: str, second: str, country_key: str | None) -> bo
     return country_key == "BR" and frozenset((alias_key(first), alias_key(second))) in BRAZILIAN_SEPARATE_PAIRS
 
 
-def canonical_name(name: str, country_key: str | None) -> str:
+def canonical_name(name: str, country_key: str | None, state: str | None = None) -> str:
     """Retorna somente um alvo que foi explicitamente verificado."""
     if country_key == "BR":
+        state_alias = BRAZILIAN_STATE_ALIASES.get(((state or "").upper(), alias_key(name)))
+        if state_alias:
+            return state_alias
         return BRAZILIAN_ALIASES.get(alias_key(name), name.strip())
     return name.strip()
-
