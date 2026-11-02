@@ -59,6 +59,13 @@ ESPN_COMPETITIONS = (
     Competition("den.1", "Danish Superliga"),
     Competition("gre.1", "Greek Super League"),
     Competition("cze.1", "Czech First League"),
+    # Expansão internacional: ligas com presença relevante em competições
+    # intercontinentais e clubes com jogadores brasileiros em atividade.
+    Competition("mex.1", "Liga MX"),
+    Competition("usa.1", "MLS"),
+    Competition("jpn.1", "J1 League"),
+    Competition("ksa.1", "Saudi Pro League"),
+    Competition("rus.1", "Russian Premier League"),
     Competition("uefa.champions", "UEFA Champions League", "continental"),
     Competition("uefa.europa", "UEFA Europa League", "continental"),
     Competition("uefa.europa.conf", "UEFA Conference League", "continental", 2021),
@@ -175,6 +182,11 @@ DOMESTIC_COMPETITION_COUNTRIES = {
     "Danish Superliga": "Dinamarca",
     "Greek Super League": "Grécia",
     "Czech First League": "Tchéquia",
+    "Liga MX": "México",
+    "MLS": "Estados Unidos",
+    "J1 League": "Japão",
+    "Saudi Pro League": "Arábia Saudita",
+    "Russian Premier League": "Rússia",
 }
 
 # Os estaduais não são apenas competições: eles também fornecem uma evidência
