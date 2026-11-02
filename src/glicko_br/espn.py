@@ -24,6 +24,7 @@ COUNTRY_BY_LEAGUE_PREFIX = {
     "por": "Portugal", "ned": "Holanda", "bel": "Bélgica",
     "tur": "Turquia", "sco": "Escócia", "sui": "Suíça", "aut": "Áustria",
     "den": "Dinamarca", "gre": "Grécia", "cze": "Tchéquia",
+    "mex": "México", "usa": "Estados Unidos", "jpn": "Japão", "ksa": "Arábia Saudita", "rus": "Rússia",
 }
 
 
