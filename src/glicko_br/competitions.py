@@ -35,6 +35,8 @@ ESPN_COMPETITIONS = (
     Competition("bra.copa_do_brazil", "Copa do Brasil", "continental"),
     Competition("conmebol.libertadores", "CONMEBOL Libertadores", "continental"),
     Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana", "continental"),
+    # Principal ponte competitiva entre América do Norte, Central e Caribe.
+    Competition("concacaf.champions", "CONCACAF Champions Cup", "continental"),
     Competition("FIFA.CWC", "FIFA Club World Cup", "world"),
     # Europa: nomes de exibição seguem o uso editorial das próprias ligas.
     # Os dados históricos são carregados uma vez por competição, e não alteram
