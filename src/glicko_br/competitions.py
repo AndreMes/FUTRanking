@@ -37,6 +37,7 @@ ESPN_COMPETITIONS = (
     Competition("conmebol.sudamericana", "CONMEBOL Sul-Americana", "continental"),
     # Principal ponte competitiva entre América do Norte, Central e Caribe.
     Competition("concacaf.champions", "CONCACAF Champions Cup", "continental"),
+    Competition("concacaf.leagues.cup", "Leagues Cup", "continental", 2019),
     Competition("FIFA.CWC", "FIFA Club World Cup", "world"),
     # Europa: nomes de exibição seguem o uso editorial das próprias ligas.
     # Os dados históricos são carregados uma vez por competição, e não alteram
@@ -68,6 +69,8 @@ ESPN_COMPETITIONS = (
     Competition("jpn.1", "J1 League"),
     Competition("ksa.1", "Saudi Pro League"),
     Competition("rus.1", "Russian Premier League"),
+    # Liga dos Campeões da Ásia: ponte entre as ligas japonesa e saudita.
+    Competition("AFC.CHAMPIONS", "AFC Champions League Elite", "continental"),
     Competition("uefa.champions", "UEFA Champions League", "continental"),
     Competition("uefa.europa", "UEFA Europa League", "continental"),
     Competition("uefa.europa.conf", "UEFA Conference League", "continental", 2021),
